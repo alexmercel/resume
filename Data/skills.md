@@ -12,8 +12,8 @@
 ## Cloud, DevOps & Platforms
 - **Cloud:** AWS (CodePipeline, CodeBuild, Stacks), Azure, CI/CD pipelines
 - **Salesforce:** Salesforce CRM, Salesforce Admin, Salesforce Workflows, APEX
-- **Integration & Data:** MuleSoft, Tableau Server, Tableau Data Viz,Postman, MQTT, Node-RED
-- **Version Control & OS:** GitHub, GitHub Actions,JIRA , Linux, Windows
+- **Integration & Data:** MuleSoft, Tableau Server, Tableau Data Viz, Postman, MQTT, Node-RED, Splunk, Datadog, NoSQL
+- **Version Control & OS:** GitHub, GitHub Actions, JIRA, Linux, Windows
 
 ## Software, Frameworks & AI
 - **Frameworks/Libs:** Flask, Bootstrap, OpenCV

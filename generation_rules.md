@@ -17,3 +17,5 @@ Follow these rules strictly whenever generating a new resume:
 8.  **Maximize Space**: Always complete the 1 page limit. If there is space left, fill it with more skills, projects, certifications, awards, research, extracurriculars, etc. Never leave any space blank.
 9.  **Template Precision**: Always make sure to use the latest version of the resume template.
 10. **Skill Suggestions**: Suggest a few skills which are not from my data but are asked for in the job description, which would be good to have for the company and somewhat relate to my skills. Present these as a prompt to the user, and ONLY if confirmed, add them.
+11. **PDF Generation**: Whenever asked to generate a new resume, always also create the PDF file.
+12. **Template Integrity**: The template file must be strictly a wireframe containing NO personal data. Always populate ALL content (Education, Experience, Projects, Skills, etc.) fresh from the `Data/` directory for every generation.
