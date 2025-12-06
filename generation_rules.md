@@ -19,3 +19,4 @@ Follow these rules strictly whenever generating a new resume:
 10. **Skill Suggestions**: Suggest a few skills which are not from my data but are asked for in the job description, which would be good to have for the company and somewhat relate to my skills. Present these as a prompt to the user, and ONLY if confirmed, add them.
 11. **PDF Generation**: Whenever asked to generate a new resume, always also create the PDF file.
 12. **Template Integrity**: The template file must be strictly a wireframe containing NO personal data. Always populate ALL content (Education, Experience, Projects, Skills, etc.) fresh from the `Data/` directory for every generation.
+13. **File Naming**: Name the generated PDF and source .tex file using the Company Name (e.g., `Apple.pdf`) if a company is specified. If no company is specified, use a descriptive name based on the role or type (e.g., `Hardware.pdf`).
