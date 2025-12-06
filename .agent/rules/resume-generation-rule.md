@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Resume Generation Instructions
 
 Follow these rules strictly whenever generating a new resume:
@@ -20,3 +24,4 @@ Follow these rules strictly whenever generating a new resume:
 11. **PDF Generation**: Whenever asked to generate a new resume, always also create the PDF file.
 12. **Template Integrity**: The template file must be strictly a wireframe containing NO personal data. Always populate ALL content (Education, Experience, Projects, Skills, etc.) fresh from the `Data/` directory for every generation.
 13. **File Naming**: Name the generated PDF and source .tex file using the Company Name (e.g., `Apple.pdf`) if a company is specified. If no company is specified, use a descriptive name based on the role or type (e.g., `Hardware.pdf`).
+14. **File Modifications**: Only modify files in the current workspace.
