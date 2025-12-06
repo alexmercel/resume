@@ -1,6 +1,6 @@
 # Resume Generation Instructions
 
-Follow these rules whenever generating a new resume:
+Follow these rules strictly whenever generating a new resume:
 
 1.  **Regeneration Policy**: Do NOT regenerate `template1.tex` or any existing resume with updated data unless explicitly asked to do so.
 2.  **Coursework**: Include *only* coursework relevant to the specific job description or resume type (e.g., Hardware vs. Software).
@@ -12,5 +12,8 @@ Follow these rules whenever generating a new resume:
     *   Include only the top few relevant items; do not list everything.
 6.  **Additional Sections**:
     *   Include **Certifications & Awards** if relevant and space permits.
-    *   Include **Research** if relevant to the role.
-7.  **Content Integrity**: **CRITICAL**: Do NOT change the text content of Projects, Work Experience, Research, or Certifications. Use the text exactly as it appears in the source Markdown files.
+    *   Include **Research** if relevant to the role and space permits.
+7.  **Content Integrity**: **CRITICAL**: Do NOT change the text content of Projects, Work Experience, Research, Certifications, or Extracurriculars. Use the text exactly as it appears in the source Markdown files.
+8.  **Maximize Space**: Always complete the 1 page limit. If there is space left, fill it with more skills, projects, certifications, awards, research, extracurriculars, etc. Never leave any space blank.
+9.  **Template Precision**: Always make sure to use the latest version of the resume template.
+10. **Skill Suggestions**: Suggest a few skills which are not from my data but are asked for in the job description, which would be good to have for the company and somewhat relate to my skills. Present these as a prompt to the user, and ONLY if confirmed, add them.

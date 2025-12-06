@@ -6,5 +6,7 @@
 - **Contribution:** Developed an AI-vision powered system for crowd management using OpenCV & Machine Learning.
 
 ## Learning Optimal Gateway Placement for Low-cost Opportunistic Smart Cities
-**Poster Presentation at 14th Annual Electrical Engineering Research Festival, USC**
-*Oct 31, 2025*
+*Network Reconnaissance Lab, USC (Advisor: Professor C. Baker)*
+- Enhanced placement methodologies and created simulations to realistically model real-world scenarios.
+- **Poster Presentation:** 14th Annual Electrical Engineering Research Festival, USC (Oct 31, 2025).
+<!-- Context: Network, Routing -->
