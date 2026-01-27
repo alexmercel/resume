@@ -3,7 +3,7 @@
 ## University of Southern California | Los Angeles, CA
 
 **Course Producer, EE354 (Intro to Digital Circuits)**
-*Aug 2025 -- Present*
+*Aug 2025 -- Jan 2026*
 - Held office hours, graded assignments/exams, and managed logistics for Professor Gandhi.
 
 **Data Analyst, MANN School of Pharmacy**
@@ -11,7 +11,7 @@
 - Helped build and test custom CRM applications on Salesforce and created data visualizations on Tableau.
 
 **Teaching Assistant, EE 457 (Computer Systems Organization)**
-*Jan 2025 -- Present*
+*Jan 2025 -- Jan 2026*
 - Assisted Professor Puvvada in revamping assignments and developing strategies to improve student learning outcomes.
 
 ## Accenture | Bangalore, India

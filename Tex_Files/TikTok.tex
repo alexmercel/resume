@@ -1,0 +1,144 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{fontawesome5}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+% Custom font
+\usepackage[default]{lato}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.6in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-6pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{topsep=0pt}
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}} \\
+    \vspace{2pt}
+    \small
+    Ph: +1 (323) 334-7408 \quad Email: \href{mailto:jaijayes@usc.edu}{jaijayes@usc.edu} \\
+    LinkedIn: \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9} \quad Availability: May 2026 \\
+    \vspace{-8pt}
+\end{center}
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California (USC)}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+Relevant Coursework: Computer Networks (EE-450), Computer System Architecture (EE-457), Advanced Computer Architecture (EE-557), Algorithms (CSCI-570), Database Management Systems, AI Agents.
+
+\vspace{2pt}
+
+\textbf{Vellore Institute of Technology (VIT)}, Vellore, India \hfill April 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication (IoT and Sensors)} \hfill CGPA: 9.04 / 10.00 \\
+Relevant Coursework: IoT Systems, Web Technologies, Object Oriented Programming, Data Structures \& Algorithms, Cloud Computing.
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\textbf{Languages:} Python, Java, C, C++, SQL, MySQL, JavaScript, HTML5, CSS3, PHP, APEX, DataWeave \\
+\textbf{Frameworks \& Tools:} Flask, Bootstrap, AWS (CodePipeline, CodeBuild), Azure, CI/CD pipelines, Docker, Git, JIRA, Linux, Postman, MQTT, Splunk, Datadog, Tableau \\
+\textbf{Concepts:} Data Structures \& Algorithms, SDLC, API Design, RESTful APIs, OOP, Computer Networks, Database Management
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+
+\textbf{Accenture}, Bangalore, India \hfill July 2022 -- Aug 2024 \\
+\textit{Backend Developer}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Spearheaded transition from manual deployments to CI/CD pipeline, reducing turnaround time by 50\% and streamlining Dev-QA handoffs.
+    \item Developed and maintained custom CRM applications using Salesforce and APEX; delivered 30+ API services using MuleSoft.
+\end{itemize}
+
+\textbf{University of Southern California}, Los Angeles, CA \hfill Jan 2025 -- Present \\
+\textit{Course Producer (EE354) / Teaching Assistant (EE 457)}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Held office hours, graded assignments/exams, and managed logistics for digital circuits and computer organization courses.
+    \item Assisted in revamping assignments and developing strategies to improve student learning outcomes.
+\end{itemize}
+
+
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+
+\textbf{TCP/IP Socket Programming (EE 450 Course Project)} \hfill 2025 \\
+\textit{Python, Socket Programming, Networking}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed and implemented client-server systems for data packet exchange using Python TCP/IP sockets.
+    \item Optimized data transmission protocols to ensure reliable delivery and handled concurrent connections effectively.
+\end{itemize}
+
+\textbf{Web Scrapers and Automation Suite} \hfill 2018 -- Present \\
+\textit{Python, Selenium, Flask}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed an automation bot using Python (Flask) to bulk-fill Google Forms, optimizing time by 98\% compared to manual entry.
+    \item Implemented Selenium-based test suites to verify feature deployment consistency across multiple user profiles.
+\end{itemize}
+
+\textbf{IoT-Based Keyless Bike Access System} \hfill 2019 \\
+\textit{ESP8266, C++, Android, WiFi}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Developed a keyless authentication system using ESP8266 and WiFi for bike access via a mobile app, facilitating secure vehicle sharing.
+    \item Implemented secure communication protocols to ensure user privacy and data protection.
+\end{itemize}
+
+\textbf{Smart Mirror with MQTT Home Automation} \hfill 2020 -- 2021 \\
+\textit{Raspberry Pi, ESP8266, MQTT, Python}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Built a Smart Mirror using Raspberry Pi and ESP8266, integrated with home automation via MQTT to control appliances.
+    \item Integrated real-time data displays for weather and news, creating a seamless and interactive user experience.
+\end{itemize}
+
+%-----------RESEARCH-----------%
+\section*{Research}
+\textbf{OpenCV-Based AI-Driven Customer Screening System} \hfill 2024 \\
+\textit{Published in Wireless Personal Communications, Springer Journal}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Developed an AI-vision powered system for crowd management using OpenCV \& Machine Learning.
+\end{itemize}
+
+%-----------CERTIFICATIONS-----------%
+\section*{Certifications \& Awards}
+\textbf{Certifications:} MuleSoft Certified Developer (MCD - Level 1) (2023) \\
+\textbf{Awards:} Pinnacle TCI Award (Accenture), Growth Catalyst Award (Accenture), National Cyber Olympiad (Zonal Rank 1)
+
+\end{document}
