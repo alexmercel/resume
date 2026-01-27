@@ -1,0 +1,154 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{fontawesome5}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+% Custom font
+\usepackage[default]{lato}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-8pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule\vspace{-7pt}]
+
+%Items formatting
+\setlist[itemize]{topsep=0pt}
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}} \\
+    \vspace{2pt}
+    \small
+    Ph: +1 (323) 334-7408 \quad Email: \href{mailto:jaijayes@usc.edu}{jaijayes@usc.edu} \\
+    LinkedIn: \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9} \quad Availability: May 2026 \\
+    \vspace{-8pt}
+\end{center}
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California (USC)}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+Relevant Coursework: Computer System Architecture (EE-457), Advanced Computer Architecture (EE-557), Computer Networks (EE-450), Algorithms (CSCI-570), Database Management Systems.
+
+\vspace{1pt}
+
+\textbf{Vellore Institute of Technology (VIT)}, Vellore, India \hfill April 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication (IoT and Sensors)} \hfill CGPA: 9.04 / 10.00 \\
+Relevant Coursework: IoT Systems, Advanced Microcontrollers, Signal Analysis, Object Oriented Programming.
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\textbf{Languages:} C, C++, CUDA, Verilog, Python, SystemVerilog, Assembly, Java, SQL, Embedded C \\
+\textbf{Hardware \& Tools:} FPGA Design, Questasim, Quartus II, Spice (Multisim), LabVIEW, MATLAB, Wireshark \\
+\textbf{Concepts/Domains:} Computer Architecture, Parallel Computing, Low Power Design, Memory Subsystems, Digital Logic, ML, RTL Design
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+
+\textbf{University of Southern California}, Los Angeles, CA \hfill Jan 2025 -- Jan 2026 \\
+\textit{Course Producer (EE354) / Teaching Assistant (EE 457)}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Held office hours and graded assignments for \textbf{Computer Systems Organization} and \textbf{Intro to Digital Circuits}.
+    \item Assisted in teaching core concepts like pipelining, cache memory, and digital logic synthesis to undergraduate students.
+\end{itemize}
+
+\textbf{Schneider Electric}, Bangalore, India \hfill July 2021 -- Aug 2021 \\
+\textit{Intern}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Researched UPS efficiency, proposing improvements for battery longevity and analyzing energy consumption trends.
+\end{itemize}
+
+\textbf{Accenture}, Bangalore, India \hfill July 2022 -- Aug 2024 \\
+\textit{Backend Developer}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Spearheaded transition to CI/CD pipelines, reducing deployment turnaround time by 50\%.
+    \item Developed robust backend services and APIs, ensuring high availability and scalability for critical business applications.
+\end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+
+\textbf{Microarchitecture Design (EE 457 Course Project)} \hfill 2024 \\
+\textit{Verilog, Questasim, Computer Architecture}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed and simulated single-cycle CPUs, ALUs, and Tomasulo machines using Verilog and Questasim.
+    \item Implemented advanced concepts including register renaming, hazard detection, and out-of-order execution.
+\end{itemize}
+
+\textbf{Alarm Clock on FPGA} \hfill 2019 \\
+\textit{Verilog, FPGA, Digital Logic}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Built a fully functional alarm clock using Verilog on FPGA hardware, managing display logic, clock cycles, and user input.
+    \item Implemented state machines to handle time-setting, alarm triggering, and snoozing functionality suitable for hardware synthesis.
+\end{itemize}
+
+\textbf{IoT-Based Keyless Bike Access System} \hfill 2019 \\
+\textit{ESP8266, C++, Android, WiFi}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Developed a keyless authentication system using ESP8266 and WiFi for bike access via a mobile app.
+    \item Integrated hardware sensors and actuators with low-latency communication protocols.
+\end{itemize}
+
+\textbf{TCP/IP Socket Programming (EE 450 Course Project)} \hfill 2025 \\
+\textit{C++, Socket Programming, Networking}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed and implemented client-server systems for data packet exchange using TCP/IP sockets.
+    \item Optimized data transmission protocols for reliability and concurrency.
+\end{itemize}
+
+%-----------RESEARCH-----------%
+\section*{Research}
+
+\textbf{Learning Optimal Gateway Placement for Low-cost Opportunistic Smart Cities} \hfill 2025 \\
+\textit{Network Reconnaissance Lab, USC (Advisor: Professor C. Baker)}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Enhanced placement methodologies and created simulations to realistically model real-world scenarios.
+\end{itemize}
+\textbf{OpenCV-Based AI-Driven Customer Screening System} \hfill 2024 \\
+\textit{Published in Wireless Personal Communications, Springer Journal}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Developed an AI-vision powered system for crowd management using OpenCV \& Machine Learning.
+\end{itemize}
+
+%-----------CERTIFICATIONS-----------%
+\section*{Certifications \& Awards}
+\textbf{Certifications:} MuleSoft Certified Developer (MCD - Level 1) \\
+\textbf{Awards:} Pinnacle TCI Award; Growth Catalyst Award (Accenture); National Cyber Olympiad (Zonal Rank 1)
+
+\end{document}

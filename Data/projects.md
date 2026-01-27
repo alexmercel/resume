@@ -1,7 +1,7 @@
 # Projects
 
 ## Microarchitecture Design (EE 457 Course Project)
-*USC*
+*2024*
 - Designed and simulated single-cycle CPUs, ALUs, and Tomasulo machines using Verilog and Questasim.
 - Implemented advanced concepts including register renaming, hazard detection, and out-of-order execution.
 

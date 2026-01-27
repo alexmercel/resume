@@ -25,4 +25,9 @@ Follow these rules strictly whenever generating a new resume:
 12. **Template Integrity**: The template file must be strictly a wireframe containing NO personal data. Always populate ALL content (Education, Experience, Projects, Skills, etc.) fresh from the `Data/` directory for every generation.
 13. **File Naming**: Name the generated PDF and source .tex file using the Company Name (e.g., `Apple.pdf`) if a company is specified. If no company is specified, use a descriptive name based on the role or type (e.g., `Hardware.pdf`).
 14. **File Modifications**: Only modify files in the current workspace.
+15. **Directory Structure**: Always save generated files in the following dedicated folders:
+    *   **PDFs**: `PDFs/` (e.g., `PDFs/Apple.pdf`)
+    *   **LaTeX Source**: `Tex_Files/` (e.g., `Tex_Files/Apple.tex`)
+    *   **Cover Letters**: `Cover_Letters/` (e.g., `Cover_Letters/Apple_Cover_Letter.txt`)
+    *   **Helper Files**: `Build_Logs/` (e.g., `Build_Logs/Apple.aux`, `Build_Logs/Apple.log`)
 
