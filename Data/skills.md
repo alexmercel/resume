@@ -2,12 +2,12 @@
 
 ## Languages
 - Python, Java, C, C++, Verilog, Embedded C, Assembly, SQL, MySQL, APEX, DataWeave
-- JavaScript, HTML5, CSS3, PHP
+- JavaScript, HTML5, CSS3, PHP,SWIFT
 
 ## Hardware & Embedded Systems
-- **Platforms/Microcontrollers:** Raspberry Pi, Arduino, NodeMCU, ESP8266, FPGA Design, IoT, Sensors
+- **Platforms/Microcontrollers:** Raspberry Pi, Arduino, NodeMCU, ESP8266, FPGA Design, IoT, Sensors, WiFi, Bluetooth
 - **Tools:** Questasim, Multisim, LabVIEW, Quartus II, KEIL uVision, TinkerCAD, Cisco Packet Tracer, ThingSpeak, Wireshark, MATLAB
-- **Concepts:** Computer Architecture, Computer Networks, Tomasulo Algorithm, ALU Design, Out-of-Order Execution, Memory Coherence, Pipelining
+- **Concepts:** Computer Architecture, Computer Networks, Tomasulo Algorithm, ALU Design, Out-of-Order Execution, Memory Coherence, Pipelining, Agile, SDLC, Scrum, Kanban
 
 ## Cloud, DevOps & Platforms
 - **Cloud:** AWS (CodePipeline, CodeBuild, Stacks), Azure, CI/CD pipelines
@@ -17,7 +17,7 @@
 
 ## Software, Frameworks & AI
 - **Frameworks/Libs:** Flask, Bootstrap, OpenCV
-- **AI/ML:** Machine Learning, Computer Vision, AI Agents, Vibe Coding, ChatGPT
+- **AI/ML:** Machine Learning, Computer Vision, AI Agents, Vibe Coding, ChatGPT, Antigravity, Vibe Coding, Codex, Ollama, LLMs, RAGs
 - **Development Concepts:** Data Structures & Algorithms, SDLC, API Design, RESTful APIs, Web Scraping
 
 ## Creative & Productivity

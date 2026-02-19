@@ -1,0 +1,16 @@
+Dear Hiring Manager,
+
+I am writing to express my strong interest in the Software Engineer - Deployment Orchestration position at Twilio. As a developer who has personally spearheaded the transition from manual deployments to automated CI/CD pipelines, I deeply resonate with your mission to provide "a safe, secure, and automated path to production." I am eager to bring my experience in building robust deployment guardrails and internal engineering tools to your Platform Engineering team.
+
+During my tenure at Accenture, I operated locally as a platform engineer for my product team. Facing a landscape of fragile manual handoffs, I supervised the design and implementation of a fully automated CI/CD pipeline, which reduced our deployment turnaround time by 50%. I didn't just automate the "happy path"; I focused on stability and observability by creating reusable logging and error-handling frameworks that became the standard across our engineering unit. This directly aligns with your team’s goal of "operationalizing standardized pipeline templates."
+
+I am particularly excited about Twilio's forward-thinking approach to AI. I actively incorporate tools like GitHub Copilot and ChatGPT into my daily workflow to accelerate development and debugging, ensuring I can move fast without breaking things. My technical background in AWS, Docker, and scripting (Python/Bash), combined with my "production-first" mindset from building IoT systems, positions me effectively to contribute to Twilio's next-generation unified deployment orchestrator.
+
+Twilio’s culture of "Twilio Magic"—specifically being a "builder"—is what draws me to this role. I look forward to the possibility of discussing how my background in automating workflows and building safe deployment paths can support the Deployment Orchestration team.
+
+Sincerely,
+
+Jai Jayesh Shah
+jaijayes@usc.edu
++1 (323) 334-7408
+linkedin.com/in/jaishah9

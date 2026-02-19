@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.5)  10 FEB 2026 16:24
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.5)  4 FEB 2026 01:08
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**"/Users/jaishah/Documents/Coding/Resume - Latex/resume/Tex_Files/Nvidia.tex"
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/Tex_Files/Nvidia.tex
+**IMF.tex
+(./IMF.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
 (/usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
@@ -342,35 +342,35 @@ Package: xkeyval 2022/06/16 v2.9 package option processing (HA)
 File: xkeyval.tex 2014/12/03 v2.7a key=value parser (HA)
 )))
 LaTeX Font Info:    Trying to load font information for OT1+lato-TLF on input l
-ine 52.
+ine 51.
 
 (/usr/local/texlive/2025/texmf-dist/tex/latex/lato/OT1lato-TLF.fd
 File: OT1lato-TLF.fd 2019/06/24 Font definitions for OT1/lato-TLF.
 )
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/n' will be
-(Font)              scaled to size 10.0pt on input line 52.
+(Font)              scaled to size 10.0pt on input line 51.
 
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.aux)
-\openout1 = `Nvidia.aux'.
+(../Build_Logs/IMF.aux)
+\openout1 = `IMF.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 52.
-LaTeX Font Info:    ... okay on input line 52.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
 
 (/usr/local/texlive/2025/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
@@ -386,40 +386,39 @@ LaTeX Font Info:    ... okay on input line 52.
 \makeMPintoPDFobject=\count294
 \everyMPtoPDFconversion=\toks29
 )
-Package hyperref Info: Link coloring OFF on input line 52.
- (/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.out)
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.out)
+Package hyperref Info: Link coloring OFF on input line 51.
+ (../Build_Logs/IMF.out) (../Build_Logs/IMF.out)
 \@outlinefile=\write3
-\openout3 = `Nvidia.out'.
+\openout3 = `IMF.out'.
 
 \c@mv@tabular=\count295
 \c@mv@boldtabular=\count296
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/n' will be
-(Font)              scaled to size 17.28pt on input line 56.
+(Font)              scaled to size 17.28pt on input line 55.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/b/n' will be
-(Font)              scaled to size 17.28pt on input line 56.
+(Font)              scaled to size 17.28pt on input line 55.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/n' will be
-(Font)              scaled to size 9.0pt on input line 58.
+(Font)              scaled to size 9.0pt on input line 57.
 
 
 LaTeX Font Warning: Font shape `OT1/lato-TLF/m/sc' undefined
-(Font)              using `OT1/lato-TLF/m/n' instead on input line 65.
+(Font)              using `OT1/lato-TLF/m/n' instead on input line 64.
 
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/sc' will be
-(Font)              scaled to size 12.0pt on input line 65.
+(Font)              scaled to size 12.0pt on input line 64.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/b/n' will be
-(Font)              scaled to size 10.0pt on input line 66.
+(Font)              scaled to size 10.0pt on input line 65.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/it' will be
-(Font)              scaled to size 10.0pt on input line 67.
+(Font)              scaled to size 10.0pt on input line 66.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/sc' will be
-(Font)              scaled to size 10.0pt on input line 76.
+(Font)              scaled to size 10.0pt on input line 74.
 LaTeX Font Info:    Trying to load font information for TS1+lato-TLF on input l
-ine 86.
+ine 85.
 (/usr/local/texlive/2025/texmf-dist/tex/latex/lato/TS1lato-TLF.fd
 File: TS1lato-TLF.fd 2019/06/24 Font definitions for TS1/lato-TLF.
 )
 LaTeX Font Info:    Font shape `TS1/lato-TLF/m/n' will be
-(Font)              scaled to size 10.0pt on input line 86.
+(Font)              scaled to size 10.0pt on input line 85.
 
 
 
@@ -432,8 +431,7 @@ Package fancyhdr Warning: \footskip is too small (0.0pt):
 {/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
 al/texlive/2025/texmf-dist/fonts/enc/dvips/lato/a_y72t7m.enc}{/usr/local/texliv
 e/2025/texmf-dist/fonts/enc/dvips/lato/a_vc7epu.enc}{/usr/local/texlive/2025/te
-xmf-dist/fonts/enc/dvips/lato/a_rt66h3.enc}]
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.aux)
+xmf-dist/fonts/enc/dvips/lato/a_rt66h3.enc}] (../Build_Logs/IMF.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -442,22 +440,21 @@ L3 programming layer <2025-01-18>
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
-Package rerunfilecheck Info: File `Nvidia.out' has not changed.
+Package rerunfilecheck Info: File `IMF.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 14546 strings out of 473190
- 253964 string characters out of 5715800
- 664742 words of memory out of 5000000
- 37637 multiletter control sequences out of 15000+600000
+ 14545 strings out of 473190
+ 253188 string characters out of 5715800
+ 664720 words of memory out of 5000000
+ 37636 multiletter control sequences out of 15000+600000
  588493 words of font info for 51 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,11n,79p,365b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,11n,79p,296b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Bold.pfb><
 /usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Italic.pfb></
 usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Regular.pfb>
-Output written on "/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/N
-vidia.pdf" (1 page, 85252 bytes).
+Output written on ../Build_Logs/IMF.pdf (1 page, 85504 bytes).
 PDF statistics:
  36 PDF objects out of 1000 (max. 8388607)
  25 compressed objects within 1 object stream

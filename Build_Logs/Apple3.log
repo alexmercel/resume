@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.5)  10 FEB 2026 16:24
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.5)  9 FEB 2026 15:10
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**"/Users/jaishah/Documents/Coding/Resume - Latex/resume/Tex_Files/Nvidia.tex"
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/Tex_Files/Nvidia.tex
+**Apple3.tex
+(./Apple3.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
 (/usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
@@ -350,8 +350,8 @@ File: OT1lato-TLF.fd 2019/06/24 Font definitions for OT1/lato-TLF.
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/n' will be
 (Font)              scaled to size 10.0pt on input line 52.
 
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.aux)
-\openout1 = `Nvidia.aux'.
+(../Build_Logs/Apple3.aux)
+\openout1 = `Apple3.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 52.
 LaTeX Font Info:    ... okay on input line 52.
@@ -387,10 +387,9 @@ LaTeX Font Info:    ... okay on input line 52.
 \everyMPtoPDFconversion=\toks29
 )
 Package hyperref Info: Link coloring OFF on input line 52.
- (/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.out)
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.out)
+ (../Build_Logs/Apple3.out) (../Build_Logs/Apple3.out)
 \@outlinefile=\write3
-\openout3 = `Nvidia.out'.
+\openout3 = `Apple3.out'.
 
 \c@mv@tabular=\count295
 \c@mv@boldtabular=\count296
@@ -414,12 +413,12 @@ LaTeX Font Info:    Font shape `OT1/lato-TLF/m/it' will be
 LaTeX Font Info:    Font shape `OT1/lato-TLF/m/sc' will be
 (Font)              scaled to size 10.0pt on input line 76.
 LaTeX Font Info:    Trying to load font information for TS1+lato-TLF on input l
-ine 86.
+ine 87.
 (/usr/local/texlive/2025/texmf-dist/tex/latex/lato/TS1lato-TLF.fd
 File: TS1lato-TLF.fd 2019/06/24 Font definitions for TS1/lato-TLF.
 )
 LaTeX Font Info:    Font shape `TS1/lato-TLF/m/n' will be
-(Font)              scaled to size 10.0pt on input line 86.
+(Font)              scaled to size 10.0pt on input line 87.
 
 
 
@@ -432,8 +431,7 @@ Package fancyhdr Warning: \footskip is too small (0.0pt):
 {/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
 al/texlive/2025/texmf-dist/fonts/enc/dvips/lato/a_y72t7m.enc}{/usr/local/texliv
 e/2025/texmf-dist/fonts/enc/dvips/lato/a_vc7epu.enc}{/usr/local/texlive/2025/te
-xmf-dist/fonts/enc/dvips/lato/a_rt66h3.enc}]
-(/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/Nvidia.aux)
+xmf-dist/fonts/enc/dvips/lato/a_rt66h3.enc}] (../Build_Logs/Apple3.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -442,22 +440,21 @@ L3 programming layer <2025-01-18>
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
-Package rerunfilecheck Info: File `Nvidia.out' has not changed.
+Package rerunfilecheck Info: File `Apple3.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 14546 strings out of 473190
- 253964 string characters out of 5715800
- 664742 words of memory out of 5000000
+ 14545 strings out of 473190
+ 253275 string characters out of 5715800
+ 669736 words of memory out of 5000000
  37637 multiletter control sequences out of 15000+600000
  588493 words of font info for 51 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,11n,79p,365b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,11n,79p,299b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Bold.pfb><
 /usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Italic.pfb></
 usr/local/texlive/2025/texmf-dist/fonts/type1/typoland/lato/Lato-Regular.pfb>
-Output written on "/Users/jaishah/Documents/Coding/Resume - Latex/resume/PDFs/N
-vidia.pdf" (1 page, 85252 bytes).
+Output written on ../Build_Logs/Apple3.pdf (1 page, 86114 bytes).
 PDF statistics:
  36 PDF objects out of 1000 (max. 8388607)
  25 compressed objects within 1 object stream

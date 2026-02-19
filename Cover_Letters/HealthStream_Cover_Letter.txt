@@ -1,0 +1,27 @@
+Jai Jayesh Shah
+Los Angeles, CA
++1 (323) 334-7408
+jaijayes@usc.edu
+linkedin.com/in/jaishah9
+
+Thu, Jan 29, 2025
+
+Hiring Manager
+HealthStream
+Nashville, TN
+
+Dear Hiring Manager,
+
+I am writing to express my interest in the Developer position at HealthStream. With a Master’s in Computer Engineering from USC and over two years of professional experience as an Advanced Application Developer with Accenture, I am excited about the opportunity to contribute to HealthStream’s mission of improving healthcare quality through workforce development. My background in full-stack development, DevOps, and cloud technologies aligns perfectly with the responsibilities of this role.
+
+During my tenure at Accenture, I displayed my ability to deliver high-quality software solutions in an Agile environment. One of my key achievements was supervising the transition from manual deployments to a robust CI/CD pipeline, which reduced turnaround time by 50% and streamlined the handoff between Development and QA teams. This experience gave me a deep appreciation for the "best practices" and "automation" emphasized in your job description. I also developed and maintained custom CRM applications using Salesforce and APEX, delivering over 30 API integrations with MuleSoft. This required a strong understanding of application-level database interfaces and the logic skills to handle complex integrations.
+
+I am particularly drawn to this role because it requires a blend of technical implementation and collaborative problem-solving and gives me a challenge. At Accenture, I created reusable logging and error-handling frameworks that significantly improved system observability—experience that directly translates to the operational troubleshooting and defect resolution needs at HealthStream. I am proficient in Python, Java, and SQL, and I have hands-on experience with AWS and monitoring platforms like Splunk, ensuring I can hit the ground running with your technology stack.
+
+Beyond my technical skills, I pride myself on my communication abilities. Whether serving as a Teaching Assistant at USC or collaborating with cross-functional teams at Accenture, I have always strived to translate technical concepts for non-technical stakeholders effectively. I am eager to bring my dedication to code quality, passion for continuous learning, and collaborative spirit to the HealthStream team.
+
+Thank you for your time and consideration. I look forward to the possibility of discussing how my skills and experiences can contribute in the continued success of HealthStream’s software products.
+
+Sincerely,
+
+Jai Jayesh Shah

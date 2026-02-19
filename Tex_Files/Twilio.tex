@@ -1,0 +1,151 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{fontawesome5}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+% Custom font
+\usepackage[default]{lato}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-8pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{topsep=0pt}
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}} \\
+    \vspace{2pt}
+    \small
+    Ph: +1 (323) 334-7408 \quad Email: \href{mailto:jaijayes@usc.edu}{jaijayes@usc.edu} \\
+    LinkedIn: \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9} \quad Availability: Earliest possible \\
+    \vspace{-8pt}
+\end{center}
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California (USC)}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+Related Coursework: Computer Networks, Database Management Systems, Algorithms, Distributed Systems, Adv. Architecture.
+
+\vspace{2pt}
+
+\textbf{Vellore Institute of Technology (VIT)}, Vellore, India \hfill April 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication (IoT and Sensors)} \hfill CGPA: 9.04 / 10.00 \\
+Related Coursework: IoT Systems, Object Oriented Programming, Data Structures \& Algorithms.
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\textbf{Languages:} Python, Java, Bash, Shell Scripting, YAML, SQL, JavaScript, C++, HTML5, CSS3, C \\
+\textbf{Platform \& DevOps:} AWS (EC2, IAM, stacks), CI/CD Pipelines, Docker, Datadog, Splunk, Linux, Git, Wireshark \\
+\textbf{Automation \& AI Tools:} GitHub Copilot, ChatGPT, Codex, Selenium, Vibe Coding, AI Agents, Antigravity \\
+\textbf{Integration:} MuleSoft, RESTful APIs, JSON, Postman, MQTT, Salesforce, Tableau
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+\textbf{Accenture}, Bangalore, India \hfill July 2022 -- Aug 2024 \\
+\textit{Advanced Application Developer}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Supervised transition from manual deployments to CI/CD pipeline, reducing turnaround time by 50\% and streamlining Dev-QA handoffs; ensured safer methods for production.
+    \item Created reusable frameworks for logging and error handling, operationalizing standardized patterns across the engineering team.
+    \item Implement robust guardrails including auth token caching and API rate limiting strategies to ensure system stability and security.
+    \item Delivered 30+ API services using MuleSoft, supporting scalable communication for business-critical applications.
+\end{itemize}
+
+\textbf{MANN School of Pharmacy (USC)}, Los Angeles, CA \hfill May 2025 -- Present \\
+\textit{Data Analyst / Internal Tools Developer}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Managed the Faculty Management System, an internal application, ensuring system uptime and data integrity for staff.
+    \item Developed and maintained internal software solutions utilizing Tableau to streamline administrative workflows and support operations.
+\end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+\textbf{Web Scrapers and Automation Suite} \hfill Python, Selenium
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Implemented automation scripts and test suites to verify deployment consistency across multiple environments.
+    \item Built custom internal tooling to automate data collection and validation, significantly reducing manual engineering toil.
+\end{itemize}
+
+\textbf{Automated Google Form Submission Bot} \hfill Python, Flask
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed an automation bot to bulk-process data entry, demonstrating capability to automate repetitive workflows.
+    \item Optimized process time by 98\%, showcasing efficiency improvements through code-based automation.
+\end{itemize}
+
+\textbf{TCP/IP Socket Programming (EE 450 Course Project)} \hfill C++, Socket Programming
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Designed client-server architecture for reliable data exchange, optimizing transmission protocols for concurrency.
+    \item Gained deep understanding of network layers and distributed system communication (TCP/IP).
+\end{itemize}
+
+\textbf{IoT-Based Keyless Bike Access System} \hfill ESP8266, C++, WiFi
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Built an end-to-end IoT system integrating hardware and software for secure access control.
+    \item Managed real-time device communication and state management in a distributed environment.
+\end{itemize}
+
+\textbf{Smart Mirror with MQTT Home Automation} \hfill Raspberry Pi, MQTT, Python
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Built a Smart Mirror using Raspberry Pi and ESP8266, integrated with home automation via MQTT.
+    \item Designed an interactive interface displaying real-time information such as weather and news.
+\end{itemize}
+
+%-----------RESEARCH-----------%
+\section*{Research}
+\textbf{Learning Optimal Gateway Placement for Low-cost Opportunistic Smart Cities} \hfill 2025 \\
+\textit{Network Reconnaissance Lab, USC (Advisor: Professor C. Baker)}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Enhanced placement methodologies and created simulations to realistically model real-world scenarios.
+\end{itemize}
+
+\textbf{OpenCV-Based AI-Driven Customer Screening System} \hfill 2024 \\
+\textit{Published in Wireless Personal Communications, Springer Journal}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=-2pt]
+    \item Developed an AI-vision powered system for crowd management using OpenCV \& Machine Learning.
+\end{itemize}
+
+%-----------CERTIFICATIONS-----------%
+\section*{Certifications \& Awards}
+\textbf{Certifications:} MuleSoft Certified Developer (MCD - Level 1) \\
+\textbf{Awards:} Pinnacle TCI Award; Growth Catalyst Award (Accenture)
+
+\end{document}
