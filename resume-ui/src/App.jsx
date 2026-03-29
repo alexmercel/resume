@@ -136,6 +136,12 @@ function App() {
         
       </main>
 
+      <footer className="app-footer">
+        <span>Created with <span className="app-footer-heart">♥</span> by Alexmercel</span>
+        <a href="https://www.linkedin.com/in/jaishah9" target="_blank" rel="noreferrer">LinkedIn</a>
+        <a href="https://github.com/alexmercel/" target="_blank" rel="noreferrer">GitHub</a>
+      </footer>
+
       {!onboardingState.loading && onboardingState.needsOnboarding && (
         <OnboardingOverlay
           onboardingState={onboardingState}
@@ -168,15 +174,121 @@ function LatexInstallHelp({ pdflatexStatus }) {
             PDF generation needs <code>pdflatex</code> installed and available in PATH.
           </div>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            macOS: install MacTeX, then restart the terminal/app.
-          </div>
-          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
-          </div>
-          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is in PATH.
+            Complete the LaTeX setup during onboarding, then reopen the app if needed.
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function LatexSetupWizard({ pdflatexStatus }) {
+  const [platformInfo, setPlatformInfo] = useState({
+    label: 'Your system',
+    recommendedDistribution: 'MiKTeX or TeX Live',
+    installUrl: '',
+    alternateUrl: '',
+    installSteps: []
+  });
+  const [packages, setPackages] = useState([]);
+  const [checkState, setCheckState] = useState({ status: '', output: '', success: false });
+
+  useEffect(() => {
+    fetch('/api/system-check')
+      .then(res => res.json())
+      .then(data => {
+        if (data.platform) setPlatformInfo(data.platform);
+        if (data.packages) setPackages(data.packages);
+      })
+      .catch(() => {});
+  }, []);
+
+  const runReadinessCheck = () => {
+    setCheckState({ status: 'Running readiness check...', output: '', success: false });
+    fetch('/api/latex-setup-check', { method: 'POST' })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'LaTeX readiness check failed.');
+        setCheckState({
+          status: 'LaTeX setup is ready for this app.',
+          output: data.output || '',
+          success: true
+        });
+      })
+      .catch((error) => {
+        setCheckState({
+          status: error.message || 'LaTeX readiness check failed.',
+          output: '',
+          success: false
+        });
+      });
+  };
+
+  return (
+    <div className="surface-block latex-setup-card" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
+        <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
+        <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
+          {pdflatexStatus.installed ? 'Installed' : 'Missing'}
+        </span>
+      </div>
+      <div className="latex-setup-grid">
+        <div className="surface-block latex-setup-panel">
+          <div className="latex-setup-eyebrow">Recommended setup</div>
+          <div style={{fontWeight: 700, marginTop: '0.25rem'}}>{platformInfo.label}: {platformInfo.recommendedDistribution}</div>
+          <div style={{color: 'var(--text-secondary)', marginTop: '0.6rem', lineHeight: 1.6}}>
+            Use the official installer for your OS, then reopen the app and run the readiness check.
+          </div>
+          <div className="action-row" style={{justifyContent: 'flex-start', marginTop: '0.9rem', marginBottom: 0}}>
+            {platformInfo.installUrl && (
+              <a className="secondary-button" href={platformInfo.installUrl} target="_blank" rel="noreferrer">
+                Open Installer
+              </a>
+            )}
+            {platformInfo.alternateUrl && (
+              <a className="secondary-button" href={platformInfo.alternateUrl} target="_blank" rel="noreferrer">
+                Alternate Option
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="surface-block latex-setup-panel">
+          <div className="latex-setup-eyebrow">Template packages</div>
+          <div style={{color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.6}}>
+            The wizard checks the package set your resume templates actually use.
+          </div>
+          <div className="generator-chip-wrap" style={{marginTop: '0.75rem'}}>
+            {packages.length
+              ? packages.map((pkg) => <span key={pkg} className="generator-chip">{pkg}</span>)
+              : <span className="generator-chip">No packages detected</span>}
+          </div>
+        </div>
+      </div>
+      {pdflatexStatus.installed ? (
+        <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+          {pdflatexStatus.version || 'pdflatex detected on this machine.'}
+        </div>
+      ) : (
+        <>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            PDF generation needs <code>pdflatex</code> installed and available in PATH.
+          </div>
+          <div className="latex-setup-steps">
+            {platformInfo.installSteps.map((step) => (
+              <div key={step} className="latex-setup-step">{step}</div>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="action-row" style={{justifyContent: 'flex-start', marginBottom: 0}}>
+        <button className="primary-button" onClick={runReadinessCheck}>Run Readiness Check</button>
+      </div>
+      {checkState.status && (
+        <div className={`status-banner ${checkState.success ? 'info' : 'warning'}`}>
+          {checkState.status}
+          {checkState.output ? ` ${checkState.output}` : ''}
+        </div>
       )}
     </div>
   );
@@ -303,9 +415,7 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
               </div>
             )}
 
-            {!pdflatex.installed && (
-              <LatexInstallHelp pdflatexStatus={pdflatex} />
-            )}
+            <LatexSetupWizard pdflatexStatus={pdflatex} />
           </div>
 
           <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
@@ -367,6 +477,7 @@ function GeneratorView({ state, setState }) {
   } = state;
   const [pdflatexStatus, setPdflatexStatus] = useState({ installed: true, version: '' });
   const [isHumanizing, setIsHumanizing] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
   const resultsRef = React.useRef(null);
   const updateGeneratorState = (patch) => {
     setState((prev) => ({ ...prev, ...patch }));
@@ -411,21 +522,6 @@ function GeneratorView({ state, setState }) {
       .catch(() => {
         setPdflatexStatus({ installed: false, version: '' });
       });
-  }, []);
-
-  // Poll for PDFs
-  useEffect(() => {
-    const fetchPdfs = () => {
-      fetch('/api/outputs')
-        .then(res => res.json())
-        .then(data => {
-          if (data.files) updateGeneratorState({ pdfs: data.files });
-        })
-        .catch(console.error);
-    };
-    fetchPdfs();
-    const interval = setInterval(fetchPdfs, 3000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleGenerate = () => {
@@ -498,6 +594,18 @@ function GeneratorView({ state, setState }) {
       .finally(() => setIsHumanizing(false));
   };
 
+  const handleCopyCoverLetter = async () => {
+    if (!coverLetter.trim()) return;
+    try {
+      await navigator.clipboard.writeText(coverLetter);
+      setCopyStatus('Copied');
+      setTimeout(() => setCopyStatus(''), 1800);
+    } catch {
+      setCopyStatus('Copy failed');
+      setTimeout(() => setCopyStatus(''), 1800);
+    }
+  };
+
   const hasResults = hasGeneratedResume && (pdfs.length > 0 || !!coverLetter || !!metrics);
   const atsScore = metrics?.optimizationPercentage || 0;
   const atsTone = !metrics
@@ -562,7 +670,7 @@ function GeneratorView({ state, setState }) {
               <h4 style={{color: metrics ? '#a855f7' : 'var(--text-secondary)', margin: '0 0 0.75rem 0', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: metrics ? 0.9 : 0.7}}>Extracted Skills</h4>
               <div className={`generator-chip-wrap ${metrics ? '' : 'muted'}`}>
                 {metrics
-                  ? (metrics.jdKeywords || []).slice(0, 12).map(k => <span key={k} className="generator-chip">{k}</span>)
+                  ? (metrics.jdKeywords || []).map(k => <span key={k} className="generator-chip">{k}</span>)
                   : ['Python', 'AWS', 'Leadership', 'Analytics'].map(k => <span key={k} className="generator-chip">{k}</span>)}
               </div>
             </div>
@@ -571,7 +679,7 @@ function GeneratorView({ state, setState }) {
               <h4 style={{color: metrics ? '#10b981' : 'var(--text-secondary)', margin: '0 0 0.75rem 0', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: metrics ? 0.9 : 0.7}}>Matched Keywords</h4>
               <div className={`generator-chip-wrap ${metrics ? '' : 'muted'}`}>
                 {metrics
-                  ? (metrics.matchedKeywords || []).slice(0, 12).map(k => <span key={k} className="generator-chip success">{k}</span>)
+                  ? (metrics.matchedKeywords || []).map(k => <span key={k} className="generator-chip success">{k}</span>)
                   : ['Tailored bullets', 'ATS score', 'Impact verbs'].map(k => <span key={k} className="generator-chip success">{k}</span>)}
               </div>
             </div>
@@ -629,7 +737,7 @@ function GeneratorView({ state, setState }) {
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
             >
               <h2 className="panel-title" style={{margin: 0}}>
-                📄 Generated Resume
+                📄 AI Resume
                 {latestPdf && <span style={{fontSize: '0.875rem', color: '#10b981', marginLeft: '0.75rem'}}>Ready</span>}
               </h2>
               <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: pdfOpen ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block', opacity: latestPdf ? 1 : 0.45 }}>▾</span>
@@ -666,6 +774,18 @@ function GeneratorView({ state, setState }) {
                 {coverLetter && <span style={{fontSize: '0.875rem', color: '#10b981', marginLeft: '0.75rem'}}>Ready</span>}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {coverLetter && (
+                  <button
+                    className="secondary-button"
+                    style={{padding: '0.4rem 0.8rem', fontSize: '0.875rem'}}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyCoverLetter();
+                    }}
+                  >
+                    {copyStatus || 'Copy Text'}
+                  </button>
+                )}
                 {coverLetter && (
                   <button
                     className="secondary-button"
@@ -739,6 +859,7 @@ function ProfileSettingsView() {
   const [pdflatexStatus, setPdflatexStatus] = useState({ installed: false, version: '' });
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash-lite');
+  const [dailyGoal, setDailyGoal] = useState('5');
   const [models, setModels] = useState([
     'gemini-3.1-flash-lite-preview',
     'gemini-2.5-flash-lite',
@@ -760,6 +881,7 @@ function ProfileSettingsView() {
         if (data.settings) {
           setApiKey(data.settings.geminiApiKey || '');
           setModel(data.settings.geminiModel || 'gemini-2.5-flash-lite');
+          setDailyGoal(String(data.settings.dailyApplicationGoal || 5));
         }
         if (data.models?.length) setModels(data.models);
       })
@@ -810,7 +932,7 @@ function ProfileSettingsView() {
     fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ geminiApiKey: apiKey, geminiModel: model })
+      body: JSON.stringify({ geminiApiKey: apiKey, geminiModel: model, dailyApplicationGoal: dailyGoal })
     })
       .then(res => res.json())
       .then(data => {
@@ -889,6 +1011,18 @@ function ProfileSettingsView() {
                 <option key={item} value={item}>{item}</option>
               ))}
             </select>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
+            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Daily Apply Goal</label>
+            <input
+              type="number"
+              min="1"
+              max="25"
+              value={dailyGoal}
+              onChange={(e) => setDailyGoal(e.target.value)}
+              placeholder="5"
+            />
           </div>
 
           <div className="action-row" style={{justifyContent: 'flex-start', marginBottom: 0}}>
@@ -1267,8 +1401,8 @@ function HistoryView() {
   };
 
   return (
-    <div className="grid-2" style={{margin: '1.5rem', height: 'calc(100vh - 120px)'}}>
-      <div className="glass-panel" style={{margin: 0, overflowY: 'auto'}}>
+    <div className="history-layout" style={{margin: '1.5rem', height: 'calc(100vh - 120px)'}}>
+      <div className="glass-panel history-archive-panel" style={{margin: 0, overflowY: 'auto'}}>
         <h2 className="panel-title">Generated Archive</h2>
         <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
           {history.length === 0 && <p style={{color: 'var(--text-secondary)'}}>No resumes generated yet.</p>}
@@ -1305,7 +1439,7 @@ function HistoryView() {
         </div>
       </div>
       
-      <div className="glass-panel" style={{margin: 0, display: 'flex', flexDirection: 'column'}}>
+      <div className="glass-panel history-preview-panel" style={{margin: 0, display: 'flex', flexDirection: 'column'}}>
         {!activeItem ? (
            <div style={{display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)'}}>
              Select a resume from the archive to view or edit.
@@ -1405,11 +1539,20 @@ function HistoryView() {
 function ApplicationsView() {
   const [applications, setApplications] = useState([]);
   const [hoveredDay, setHoveredDay] = useState(null);
+  const [dailyGoal, setDailyGoal] = useState(5);
 
   useEffect(() => {
     fetch('/api/applications')
       .then(res => res.json())
       .then(data => setApplications(data.applications || []))
+      .catch(console.error);
+
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        const goal = Number(data.settings?.dailyApplicationGoal || 5);
+        setDailyGoal(Number.isFinite(goal) ? goal : 5);
+      })
       .catch(console.error);
   }, []);
 
@@ -1430,23 +1573,23 @@ function ApplicationsView() {
   const weeklyTotal = dailySeries.reduce((sum, day) => sum + day.count, 0);
   const currentStreak = [...dailySeries].reverse().reduce((acc, day) => {
     if (acc.broken) return acc;
-    if (day.count >= 5) return { value: acc.value + 1, broken: false };
+    if (day.count >= dailyGoal) return { value: acc.value + 1, broken: false };
     return { value: acc.value, broken: true };
   }, { value: 0, broken: false }).value;
   const selectedDay = hoveredDay || dailySeries[dailySeries.length - 1];
-  const chartMax = Math.max(5, ...dailySeries.map((day) => day.count));
+  const chartMax = Math.max(dailyGoal, ...dailySeries.map((day) => day.count));
 
   return (
     <div className="hide-scrollbar" style={{padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 120px)', overflowY: 'auto', width: '100%', boxSizing: 'border-box'}}>
-      <div className="glass-panel" style={{margin: 0}}>
+      <div className="glass-panel" style={{margin: 0, padding: '0.95rem 1.1rem', flex: '0 0 auto'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start'}}>
           <div>
-            <h2 className="panel-title" style={{marginBottom: '0.5rem'}}>Daily Apply Quest</h2>
-            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
-              Every successful resume generation is counted automatically here. Aim for at least 5 tailored resumes per day, track momentum, and keep the streak alive.
+            <h2 className="panel-title" style={{marginBottom: '0.25rem', fontSize: '1.1rem'}}>Daily Apply Quest</h2>
+            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45, fontSize: '0.9rem'}}>
+              Every successful resume generation is counted automatically here. Aim for at least {dailyGoal} tailored resumes per day, track momentum, and keep the streak alive.
             </p>
           </div>
-          <div className="soft-pill success">Goal: 5/day</div>
+          <div className="soft-pill success">Goal: {dailyGoal}/day</div>
         </div>
 
         <div className="applications-summary-grid">
@@ -1459,86 +1602,39 @@ function ApplicationsView() {
             <div className="generator-score-value">{weeklyTotal}</div>
           </div>
           <div className={`generator-score-card ${currentStreak > 0 ? 'excellent' : 'warning'}`}>
-            <div className="generator-score-label">5+/Day Streak</div>
+            <div className="generator-score-label">{dailyGoal}+/Day Streak</div>
             <div className="generator-score-value">{currentStreak}</div>
           </div>
         </div>
       </div>
 
-      <div className="applications-layout">
-        <div className="glass-panel" style={{margin: 0}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap'}}>
-            <h2 className="panel-title" style={{margin: 0}}>Interactive Apply Graph</h2>
-            <div className="soft-pill">{selectedDay.label}: {selectedDay.count} applications</div>
-          </div>
-
-          <div className="applications-chart-card">
-            <div className="applications-goal-line" style={{ bottom: `${(5 / chartMax) * 100}%` }}>
-              <span>Goal 5</span>
-            </div>
-            <div className="applications-chart">
-              {dailySeries.map((day) => (
-                <button
-                  key={day.key}
-                  type="button"
-                  className={`applications-bar ${day.count >= 5 ? 'hit-goal' : ''} ${selectedDay.key === day.key ? 'active' : ''}`}
-                  style={{ height: `${Math.max(10, (day.count / chartMax) * 100)}%` }}
-                  onMouseEnter={() => setHoveredDay(day)}
-                  onFocus={() => setHoveredDay(day)}
-                  onMouseLeave={() => setHoveredDay(null)}
-                >
-                  <span className="applications-bar-count">{day.count}</span>
-                  <span className="applications-bar-label">{day.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      <div className="glass-panel" style={{margin: 0, flex: '1 1 auto', minHeight: '460px'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap'}}>
+          <h2 className="panel-title" style={{margin: 0}}>Interactive Apply Graph</h2>
+          <div className="soft-pill">{selectedDay.label}: {selectedDay.count} applications</div>
         </div>
 
-        <div className="glass-panel" style={{margin: 0}}>
-          <h2 className="panel-title">Auto-Tracked Progress</h2>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7}}>
-            <p style={{margin: 0}}>
-              The tracker is now linked only to generated resumes. There is no manual add or log flow here anymore.
-            </p>
-            <p style={{margin: 0}}>
-              Generate a resume from the AI Generator tab and it will appear here automatically with the detected company, role, date, and cover-letter status.
-            </p>
-            <div className="surface-block" style={{padding: '1rem'}}>
-              <div style={{fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)'}}>What counts toward the goal</div>
-              <div>One successful generated resume PDF = one tracked application effort.</div>
-            </div>
+        <div className="applications-chart-card">
+          <div className="applications-goal-line" style={{ bottom: `${(dailyGoal / chartMax) * 100}%` }}>
+            <span>Goal {dailyGoal}</span>
           </div>
-        </div>
-      </div>
-
-      <div className="glass-panel" style={{margin: 0}}>
-        <h2 className="panel-title">Generated Resume Activity</h2>
-        {applications.length === 0 ? (
-          <p style={{margin: 0, color: 'var(--text-secondary)'}}>No generated resumes tracked yet. Generate a resume from the AI Generator tab to start building your streak.</p>
-        ) : (
-          <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-            {applications.slice(0, 12).map((item) => (
-              <div key={item.id} className="archive-item">
-                <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start'}}>
-                  <div>
-                    <div style={{fontWeight: 700}}>{item.company}</div>
-                    <div style={{color: 'var(--text-secondary)', marginTop: '0.25rem'}}>{item.role}</div>
-                  </div>
-                  <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end'}}>
-                    <div className="soft-pill">{item.appliedOn}</div>
-                    {item.hasCoverLetter && <div className="soft-pill success">Cover letter</div>}
-                  </div>
-                </div>
-                {item.filename && (
-                  <div style={{marginTop: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                    Generated file: {item.filename}
-                  </div>
-                )}
-              </div>
+          <div className="applications-chart">
+            {dailySeries.map((day) => (
+              <button
+                key={day.key}
+                type="button"
+                className={`applications-bar ${day.count >= dailyGoal ? 'hit-goal' : ''} ${selectedDay.key === day.key ? 'active' : ''}`}
+                style={{ height: `${Math.max(10, (day.count / chartMax) * 100)}%` }}
+                onMouseEnter={() => setHoveredDay(day)}
+                onFocus={() => setHoveredDay(day)}
+                onMouseLeave={() => setHoveredDay(null)}
+              >
+                <span className="applications-bar-count">{day.count}</span>
+                <span className="applications-bar-label">{day.label}</span>
+              </button>
             ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

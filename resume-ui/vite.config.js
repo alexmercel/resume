@@ -25,7 +25,8 @@ const COMMON_FREE_TIER_MODELS = [
 ];
 const DEFAULT_SETTINGS = {
   geminiApiKey: '',
-  geminiModel: 'gemini-2.5-flash-lite'
+  geminiModel: 'gemini-2.5-flash-lite',
+  dailyApplicationGoal: 5
 };
 const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
 
@@ -54,6 +55,12 @@ function getGeminiConfig() {
 
 function getGeminiUrl(model, apiKey) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+}
+
+function normalizeDailyGoal(value) {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_SETTINGS.dailyApplicationGoal;
+  return Math.min(25, Math.max(1, parsed));
 }
 
 function readApplications() {
@@ -147,6 +154,113 @@ function checkPdflatexInstalled() {
       }
       const firstLine = (stdout || '').split('\n')[0]?.trim() || '';
       resolve({ installed: true, version: firstLine });
+    });
+  });
+}
+
+function getPlatformInfo() {
+  const platform = os.platform();
+  if (platform === 'darwin') {
+    return {
+      platform,
+      label: 'macOS',
+      recommendedDistribution: 'MiKTeX or MacTeX',
+      installUrl: 'https://miktex.org/download',
+      alternateUrl: 'https://tug.org/mactex/',
+      installSteps: [
+        'Install MiKTeX for macOS for a lighter setup with automatic package installs, or install MacTeX if you prefer a full TeX distribution.',
+        'Restart the terminal or the app after installation so pdflatex is available in PATH.',
+        'Run the readiness check below to confirm the template packages compile correctly.'
+      ]
+    };
+  }
+
+  if (platform === 'win32') {
+    return {
+      platform,
+      label: 'Windows',
+      recommendedDistribution: 'MiKTeX',
+      installUrl: 'https://miktex.org/download',
+      alternateUrl: 'https://www.tug.org/texlive/windows.html',
+      installSteps: [
+        'Install MiKTeX for Windows and allow on-the-fly package installation when prompted.',
+        'Finish the installer, then reopen the app so pdflatex is available in PATH.',
+        'Run the readiness check below to verify the template packages compile successfully.'
+      ]
+    };
+  }
+
+  return {
+    platform,
+    label: 'Linux',
+    recommendedDistribution: 'TeX Live',
+    installUrl: 'https://tug.org/texlive/',
+    alternateUrl: '',
+    installSteps: [
+      'Install TeX Live with the packages your distribution provides, such as texlive-latex-base, texlive-fonts-recommended, and texlive-latex-extra.',
+      'Reopen the app after installation so pdflatex is available in PATH.',
+      'Run the readiness check below to verify the template packages compile successfully.'
+    ]
+  };
+}
+
+function getTemplatePackages(basePath) {
+  const templateDirs = [
+    path.join(basePath, 'Templates', 'Wireframes'),
+    path.join(basePath, 'Templates', 'Generic')
+  ];
+  const packages = new Set();
+
+  templateDirs.forEach((directory) => {
+    if (!fs.existsSync(directory)) return;
+    for (const file of fs.readdirSync(directory)) {
+      if (!file.endsWith('.tex')) continue;
+      const content = fs.readFileSync(path.join(directory, file), 'utf-8');
+      const matches = [...content.matchAll(/\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}/g)];
+      matches.forEach((match) => {
+        String(match[1] || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .forEach((pkg) => packages.add(pkg));
+      });
+    }
+  });
+
+  return [...packages];
+}
+
+function runLatexReadinessCheck(basePath, packages) {
+  return new Promise((resolve) => {
+    ensureDir(path.join(basePath, 'Tex_Files'));
+    const checkName = 'codex_latex_setup_check';
+    const workingDir = path.join(basePath, 'Tex_Files');
+    const checkPath = path.join(workingDir, `${checkName}.tex`);
+    const packageLines = packages.map((pkg) => `\\usepackage{${pkg}}`).join('\n');
+    const content = `\\documentclass{article}
+${packageLines}
+\\begin{document}
+LaTeX setup check for Resume Builder Studio.
+\\end{document}
+`;
+
+    fs.writeFileSync(checkPath, content, 'utf-8');
+    exec(`pdflatex -interaction=nonstopmode "${checkName}.tex"`, { cwd: workingDir }, (error, stdout, stderr) => {
+      const pdfPath = path.join(workingDir, `${checkName}.pdf`);
+      const success = !error && fs.existsSync(pdfPath);
+      cleanupLatexArtifacts(workingDir, checkName);
+      if (fs.existsSync(checkPath)) {
+        try { fs.unlinkSync(checkPath); } catch {}
+      }
+      if (fs.existsSync(pdfPath)) {
+        try { fs.unlinkSync(pdfPath); } catch {}
+      }
+
+      resolve({
+        success,
+        output: success ? 'Template packages compiled successfully.' : (stderr || stdout || 'Failed to compile the LaTeX setup check.'),
+        packages
+      });
     });
   });
 }
@@ -269,22 +383,53 @@ const API_PLUGIN = () => ({
 
       if (req.url === '/api/system-check' && req.method === 'GET') {
           const pdflatex = await checkPdflatexInstalled();
+          const basePath = path.resolve(__dirname, '..');
+          const platform = getPlatformInfo();
+          const packages = getTemplatePackages(basePath);
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ pdflatex }));
+          res.end(JSON.stringify({ pdflatex, platform, packages }));
           return;
       }
 
       if (req.url === '/api/onboarding-status' && req.method === 'GET') {
           const settings = readSettings();
           const pdflatex = await checkPdflatexInstalled();
+          const basePath = path.resolve(__dirname, '..');
+          const platform = getPlatformInfo();
+          const packages = getTemplatePackages(basePath);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             ...getOnboardingStatusPayload(),
             settings,
             models: COMMON_FREE_TIER_MODELS,
-            pdflatex
+            pdflatex,
+            platform,
+            packages
           }));
           return;
+      }
+
+      if (req.url === '/api/latex-setup-check' && req.method === 'POST') {
+        try {
+          const basePath = path.resolve(__dirname, '..');
+          const pdflatex = await checkPdflatexInstalled();
+          const packages = getTemplatePackages(basePath);
+          if (!pdflatex.installed) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'pdflatex is not installed yet.', packages }));
+            return;
+          }
+
+          const result = await runLatexReadinessCheck(basePath, packages);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: error.message || 'Failed to run LaTeX readiness check.' }));
+        }
+        return;
       }
 
       if (req.url === '/api/settings' && req.method === 'POST') {
@@ -297,7 +442,8 @@ const API_PLUGIN = () => ({
             geminiApiKey: incoming.geminiApiKey ?? '',
             geminiModel: COMMON_FREE_TIER_MODELS.includes(incoming.geminiModel)
               ? incoming.geminiModel
-              : DEFAULT_SETTINGS.geminiModel
+              : DEFAULT_SETTINGS.geminiModel,
+            dailyApplicationGoal: normalizeDailyGoal(incoming.dailyApplicationGoal)
           });
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ success: true, settings, models: COMMON_FREE_TIER_MODELS }));
