@@ -1,0 +1,129 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-12pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=0pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize Software Engineer \textbar\ Embedded Systems \& Controls}\\
+    \small
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com}{jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California}, \textit{Los Angeles, CA} \hfill Aug 2024 -- May 2026 \\
+\textit{M.S. Computer Engineering} \hfill GPA: 3.7/4.0 \\
+Relevant Coursework: Computer Architecture, Distributed Systems, Software Engineering, Database Management Systems
+
+\textbf{Vellore Institute of Technology}, \textit{Vellore, India }\hfill Apr 2018 -- May 2022 \\
+\textit{B.Tech. Electronics \& Communication (IoT \& Sensors)} \hfill CGPA: 9.04/10 \\
+Relevant Coursework: IoT Systems, Signal Analysis, Advanced Microcontrollers, Object Oriented Programming
+
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\textbf{Languages:} C/C++, Python, Embedded C, Verilog, Assembly, Java \\
+\textbf{Embedded \& Architecture:} Microcontrollers (NodeMCU, ESP8266, Raspberry Pi), IoT, Sensors, FPGA Design, Real-time Systems, Hardware Abstractions, RTL Digital Design, Computer Architecture, Memory Coherence \\
+\textbf{Tools \& OS:} Linux, Embedded Operating Systems, Git/Version Control, JIRA, ModelSim \\
+\textbf{Software Practices:} Agile Scrum methodologies, Automated Test Tools, CI/CD pipelines, System Validation, OOP
+
+
+%-----------EXPERIENCE-----------%
+\section*{Professional Experience}
+\textbf{Teaching Assistant – Digital Circuits \& Computer Systems Architecture} -- \textit{USC} \hfill Jan 2025 -- Dec 2025
+\begin{itemize}
+\item Mentored students in \textbf{RTL digital design, simulation, and hardware verification} using \textbf{Verilog} and \textbf{ModelSim}, providing hands-on instruction for embedded and microarchitectural testing.
+\item Assisted with debugging and validating digital logic implementations on \textbf{hardware} and \textbf{simulation} environments, reinforcing best practices for systematic fault isolation and edge-case testing.
+\item Explained complex hardware abstraction concepts including \textbf{pipelining}, \textbf{hazards}, and \textbf{memory hierarchy}.
+\end{itemize}
+
+\textbf{Research Assistant – Network Reconnaissance Lab} -- \textit{USC} \hfill Aug 2025 -- Dec 2025
+\begin{itemize}
+\item Modeled \textbf{networked embedded systems} to evaluate gateway placement \textbf{strategies minimizing latency} and infrastructure cost under the guidance of \textbf{Dr. C. Baker}.
+\item Conducted simulation-driven architectural studies focusing on real-time data flow and controller communications, presenting findings at \textbf{USC’s Electrical Engineering Research Festival}.
+\end{itemize}
+
+\textbf{Software Engineer / Advanced Application Engineer} -- \textit{Accenture} \hfill July 2022 -- Aug 2024
+\begin{itemize}
+\item Designed and deployed automated \textbf{CI/CD pipelines} using \textbf{GitHub Actions} and \textbf{AWS CodePipeline}, actively testing and demonstrating software functionality readiness and reducing release turnaround time by \textbf{70\%}.
+\item Authored \textbf{Python} scripts to automate internal deployment toolchains and improve operational troubleshooting.
+\item Functioned as an inclusive \textbf{Agile Scrum} team member to deliver integrated software solutions, applying structured development, testing, and system-level debugging workflows.
+\end{itemize}
+
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+\textbf{Smart Mirror IoT Automation Platform} \hfill 2020--2021
+\begin{itemize}
+\item Architected a distributed IoT system using \textbf{MQTT publish–subscribe messaging} to coordinate communication between edge devices (\textbf{Raspberry Pi} and \textbf{ESP8266}) and a central controller.
+\item Implemented real-time communication between embedded sensor nodes and user interface displays, designing event-driven automation workflows with \textbf{Python} services.
+\item Delivered common infrastructure solutions for telemetry ingestion and device orchestration across a local network.
+\end{itemize}
+
+\textbf{IoT-Based Keyless Bike Access System} \hfill 2019
+\begin{itemize}
+\item Designed dual-mode wireless authentication using \textbf{NodeMCU} with \textbf{Bluetooth/WiFi} communication for secure embedded automotive access logic.
+\item Engineered a resilient, locally hosted embedded server supporting real-time diagnostics and redundant connectivity.
+\end{itemize}
+
+\textbf{RISC-V Processor Design using RTL} \hfill 2024
+\begin{itemize}
+\item Designed a \textbf{5-stage pipelined processor} integrating \textbf{forwarding} and hazard detection control logic to resolve pipeline dependencies.
+\item Verified and demonstrated software functionality and component readiness through intense simulation testbenches utilizing continuous automated validation techniques.
+\end{itemize}
+
+\textbf{Alarm Clock on FPGA} \hfill 2019
+\begin{itemize}
+\item Developed a synthesizable \textbf{Verilog} system deployed on \textbf{FPGA} hardware with modular timing and display control.
+\item Designed multiplexed \textbf{7-segment} driver logic and validated timing edge cases.
+\end{itemize}
+
+\end{document}

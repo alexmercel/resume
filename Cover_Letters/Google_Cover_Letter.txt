@@ -1,0 +1,15 @@
+Dear Google Talent Acquisition Team,
+
+I am writing to express my strong interest in the Early Career Software Engineer position at Google. With a Master's in Computer Engineering from USC and two years of industry experience as a Software Engineer at Accenture, I am passionate about designing robust, scalable backend architectures that can handle massive throughput.
+
+During my time at Accenture, I designed and scaled over 30 RESTful microservices that processed 10,000+ daily transactions, architecting the error-tolerance and CI/CD pipelines necessary for true production reliability. Now at USC, I am driving analytics efficiency through Python-based LLM automation pipelines, processing over 100,000 records weekly. 
+
+Google’s engineering culture—where engineers routinely tackle the world’s most complex distributed computing and machine learning challenges—is exactly where I want to build my career. I am excited to bring my blend of high-scale enterprise experience, modern ML tooling experimentation, and deep computer science fundamentals to your team to build the next generation of technologies connecting billions of users.
+
+Thank you for your time and consideration. I have attached my resume and look forward to the possibility of discussing how my technical background aligns with Google's needs.
+
+Sincerely,
+
+Jai Jayesh Shah
+jaishah.work@gmail.com
+linkedin.com/in/jaishah9

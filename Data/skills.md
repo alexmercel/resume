@@ -10,14 +10,14 @@
 - **Concepts:** Computer Architecture, Computer Networks, Tomasulo Algorithm, ALU Design, Out-of-Order Execution, Memory Coherence, Pipelining, Agile, SDLC, Scrum, Kanban
 
 ## Cloud, DevOps & Platforms
-- **Cloud:** AWS (CodePipeline, CodeBuild, Stacks), Azure, CI/CD pipelines
+- **Cloud:** AWS (CodePipeline, CodeBuild, Stacks), Azure, CI/CD pipelines, Heroku, Supabase
 - **Salesforce:** Salesforce CRM, Salesforce Admin, Salesforce Workflows, APEX
 - **Integration & Data:** MuleSoft, Tableau Server, Tableau Data Viz, Postman, MQTT, Node-RED, Splunk, Datadog, NoSQL, WiFi, Bluetooth
 - **Version Control & OS:** GitHub, GitHub Actions, JIRA, Linux, Windows
 
 ## Software, Frameworks & AI
-- **Frameworks/Libs:** Flask, Bootstrap, OpenCV
-- **AI/ML:** Machine Learning, Computer Vision, AI Agents, Vibe Coding, ChatGPT, Antigravity, Vibe Coding, Codex, Ollama, LLMs, RAGs
+- **Frameworks/Libs:** Flask, Bootstrap, OpenCV, Swift, SwiftUI, CareKit, Docker, PostgreSQL, React, Node.js
+- **AI/ML:** Machine Learning, Computer Vision, AI Agents, Vibe Coding, ChatGPT, Antigravity, Codex, Ollama, LLMs, RAGs
 - **Development Concepts:** Data Structures & Algorithms, SDLC, API Design, RESTful APIs, Web Scraping
 
 ## Creative & Productivity

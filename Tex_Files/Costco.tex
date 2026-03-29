@@ -1,0 +1,129 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize\scshape Software Engineer \textbar\ Full Stack \& Backend Systems}\\
+    \small
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com}{jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California (USC)}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+\textbf{Relevant Coursework:} Database Management Systems, Computer Networks, Algorithms, Distributed Systems.
+
+\vspace{3pt}
+\textbf{Vellore Institute of Technology (VIT)}, Vellore, India \hfill April 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication} \hfill CGPA: 9.04 / 10.00 \\
+\textbf{Relevant Coursework:} Web Technologies, Object Oriented Programming, Cloud Computing.
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    {\item{
+     \textbf{Languages}{: Java, SQL (T-SQL, MS-SQL Server), Python, JavaScript, HTML5, CSS3, C++} \\
+     \textbf{Frameworks \& Data}{: Spring Boot, Hibernate ORM, Servlets, React, Node.js, PostgreSQL} \\
+     \textbf{Concepts \& Architecture}{: SOAP/RESTful Web Services, Microservices, Agile/Scrum SDLC, Database Design} \\
+     \textbf{Cloud \& DevOps}{: AWS (CodePipeline, CodeBuild), CI/CD pipelines, Docker, OpenAPI 3.0}
+    }}
+\end{itemize}
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+
+\textbf{Accenture} \textbar\ \textit{Software Engineer} \hfill July 2022 -- Aug 2024
+\begin{itemize} \itemsep -2pt
+    \item Built and scaled \textbf{30+ REST and SOAP microservices} using \textbf{Java Spring Boot}, supporting backend system design for \textbf{10k+ daily transactions} and improving distributed system integration.
+    \item Developed robust data-tier frameworks using \textbf{Hibernate ORM} and \textbf{SQL/T-SQL} scripts to connect, query, and manage relational databases, significantly improving data retrieval and manipulation efficiency.
+    \item Designed and deployed continuous \textbf{CI/CD pipelines} using \textbf{GitHub Actions} and \textbf{AWS CodePipeline}, reducing release turnaround time by \textbf{70\%} and enabling reliable Agile continuous delivery.
+    \item Engineered centralized \textbf{error handling and fault-tolerance} logic across all services utilizing \textbf{OpenAPI}, directly reducing debugging and troubleshooting time by \textbf{40\%}.
+    \item Actively collaborated in an \textbf{Agile/Scrum engineering environment}, taking part in rigorous SDLC processes, architecture design discussions, and updating data models based on framework requirements.
+\end{itemize}
+
+\textbf{University of Southern California} \textbar\ \textit{Data Analyst} \hfill May 2025 -- Present
+\begin{itemize} \itemsep -2pt
+    \item Engineered and modernized data processing architectures and ETL workflows via \textbf{Python} scripts, handling relational joins, cleaning, and transforming \textbf{100,000+ records} accurately.
+\end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+
+\textbf{Healthcare \& Behavioral Insights App} \hfill \textit{2026} \\
+\textit{Full Stack, Docker, PostgreSQL, Client/Server Models}
+\begin{itemize} \itemsep -2pt
+    \item Designed a full-stack longitudinal health-data platform utilizing client-server communication models to securely collect, store, and analyze structured patient-reported outcomes.
+    \item Built containerized backend services integrated with \textbf{PostgreSQL} relational databases to persist scalable data, mitigating latency issues and proactively solving platform support constraints.
+\end{itemize}
+
+\textbf{AadharVision} \hfill \textit{2021} \\
+\textit{Python (Flask), REST APIs, Relational Data}
+\begin{itemize} \itemsep -2pt
+    \item Engineered an access management platform driven by \textbf{REST APIs} to process responsive occupancy monitoring, securely verifying and authenticating individual identities.
+    \item Implemented real-time integration workflows communicating with external credential verification APIs, troubleshooting bottlenecks to maintain low-latency concurrent processing.
+\end{itemize}
+
+\textbf{Web Scrapers and Automation Suite} \hfill \textit{2018--Present} \\
+\textit{Automation, Testing Methodologies}
+\begin{itemize} \itemsep -2pt
+    \item Designed comprehensive testing suites to systematically simulate client workflows, thoroughly validating frontend and backend deployment consistency and improving software quality.
+\end{itemize}
+
+%-----------EXTRACURRICULAR-----------%
+\section*{Extracurricular \& Workshops}
+\begin{itemize} \itemsep -2pt
+    \item \textbf{Conference:} Participant at POST/CON 2025, LA (June 4-5, 2025) -- Learned about AI-driven future of APIs.
+    \item \textbf{Workshop:} Tableau Next Workshop (Oct 2, 2025) -- Hands-on demo of Tableau Next platform with inbuilt AI agents.
+\end{itemize}
+
+\end{document}

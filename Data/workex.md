@@ -2,36 +2,38 @@
 
 ## University of Southern California | Los Angeles, CA
 
-**Course Producer, EE354 (Intro to Digital Circuits)**
-*Aug 2025 -- Jan 2026*
-- Held office hours, graded assignments/exams, and managed logistics for Professor Gandhi.
-
 **Data Analyst, MANN School of Pharmacy**
 *May 2025 -- Present*
-- Helped build and test custom CRM applications on Salesforce and created data visualizations on Tableau.
-- Wrote various scripts to automate data collection and validation, significantly reducing manual effort
-- **Quantified Impact (2026 Update):**
-- Optimized Salesforce apps with **70+ objects** and created **30+ interactive Tableau reports**, improving data accessibility for **50+ staff**.
-- Automated data validation using Python scripts, processing **100,000+ records** and cutting manual reporting time by **15 hours/week**.
+- Developed **Tableau + SQL analytics solutions** to transform large-scale datasets into actionable insights, deploying dashboards to on-premise **Tableau Server** for organization-wide access.
+- Engineered **data processing and ETL-style workflows** including cleaning, transformation, and relational joins to support accurate reporting pipelines.
+- Enhanced **Salesforce data models** across **70+ objects** and delivered **30+ analytical reports** used by **50+ stakeholders**.
+- Automated validation and testing using **Python** and LLM-driven scripts, processing **100,000+ records** and reducing manual reporting by **15 hours/week**.
+- Implemented Nintex DocGen automation to streamline document generation and workflow efficiency.
+- Published dashboards to on-prem Tableau Server, improving organization-wide access to real-time analytics.
 
-**Teaching Assistant, EE 457 (Computer Systems Organization)**
-*Jan 2025 -- Jan 2026*
-- Assisted Professor Puvvada in revamping assignments and developing strategies to improve student learning outcomes.
+**Teaching Assistant – Digital Circuits & Computer Systems Architecture (EE 457) & Course Producer (EE 354)**
+*Jan 2025 -- Dec 2025*
+- Mentored students in **RTL digital design, simulation, and hardware verification** using **Verilog** and **ModelSim**.
+- Explained microarchitectural concepts including **pipelining**, **hazards**, **memory hierarchy**, and **cache coherence**.
+- Assisted with debugging and validating digital logic implementations on **hardware** and **simulation** environments.
+
+**Research Assistant – Network Reconnaissance Lab, USC**
+*Aug 2025 -- Dec 2025*
+- Modeled **networked embedded systems** to evaluate gateway placement **strategies minimizing latency** and infrastructure cost under the guidance of **Dr. C. Baker**.
+- Conducted simulation-driven architectural studies and presented findings at **USC’s Electrical Engineering Research Festival**.
 
 ## Accenture | Bangalore, India
 *July 2022 -- Aug 2024*
 
-**Advanced Application Developer**
-- Supervised transition from manual deployments to CI/CD pipeline, reducing turnaround time by **50%** and streamlining Dev-QA handoffs.
-- Developed and maintained custom CRM applications using Salesforce and APEX; delivered **30+** API services using MuleSoft.
-- Created resuable frameworks for logging and error handling for the company.
-- Worked closely on various auth token caching and API rate limiting strategies.
-- **Quantified Impact (2026 Update):**
-- Supervised transition from manual deployments to CI/CD pipeline, reducing turnaround time by **50%** and streamlining Dev-QA handoffs.
-- Created **2** reusable frameworks for logging and error handling, reducing debugging time by **40%** and preventing system downtime.
-- Developed and maintained custom CRM applications using Salesforce and APEX; delivered **30+** end-to-end integrations and API services handling **10k+** daily requests.
-- Optimized auth token caching and API rate limiting strategies, improving system throughput by **25%**.
-
+**Software Engineer / Advanced Application Engineer**
+- Designed and deployed automated **CI/CD pipelines** using **GitHub Actions** and **AWS CodePipeline**, reducing release turnaround time by **70%** and enabling reliable continuous delivery.
+- Built and scaled **30+ RESTful microservices and APIs** supporting backend system design for **10k+ daily transactions**, improving distributed system integration, scalability, and production reliability.
+- Defined API architecture with **OpenAPI 3.0** and implemented centralized **error handling and fault-tolerance**, reducing debugging time by **40%**.
+- Optimized authentication caching, **rate limiting**, and performance tuning strategies, increasing overall system throughput by **25%**.
+- Engineered CI/CD pipelines using GitHub Actions and AWS CodePipeline, reducing deployment time by 70%.
+- Integrated monitoring using Splunk and Datadog to ensure data reliability and operational visibility.
+- Worked in an **Agile engineering environment** following structured development, validation, and release workflows.
+- Contributed to enterprise integration systems while gaining experience with **large-scale system design**, version control, and production debugging workflows.
 
 ## Schneider Electric | Bangalore, India
 *July 2021 -- Aug 2021*
@@ -42,5 +44,5 @@
 ## Caritas NGO | Mauritius
 *June 2019 -- Aug 2019*
 
-**Volunteer (SDG **4** & **15**)**
+**Volunteer (SDG 4 & 15)**
 - Led initiatives on education and environmental conservation; taught spoken English to underprivileged children.

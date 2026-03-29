@@ -1,48 +1,43 @@
-\documentclass[letterpaper,10pt]{article}
-
+\documentclass[letterpaper,11pt]{article}
 \usepackage{fontawesome5}
-\usepackage{latexsym}
+
+
 \usepackage[empty]{fullpage}
 \usepackage{titlesec}
-\usepackage{marvosym}
-\usepackage[usenames,dvipsnames]{color}
-\usepackage{verbatim}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
-\usepackage{fancyhdr}
-\usepackage[english]{babel}
-\usepackage{tabularx}
-\input{glyphtounicode}
+
 
 % Custom font
-\usepackage[default]{lato}
+\usepackage{mathptmx}
 
-\pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
-\fancyfoot{}
-\renewcommand{\headrulewidth}{0pt}
-\renewcommand{\footrulewidth}{0pt}
 
 % Adjust margins
-\addtolength{\oddsidemargin}{-0.75in}
-\addtolength{\evensidemargin}{-0.75in}
-\addtolength{\textwidth}{1.5in}
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
 \addtolength{\topmargin}{-0.75in}
-\addtolength{\textheight}{1.5in}
+\addtolength{\textheight}{1.4in}
 
 \urlstyle{same}
 
 \raggedbottom
 \raggedright
-\setlength{\tabcolsep}{0in}
+\setlength{\tabcolsep}{1in}
 
-% Sections formatting
 \titleformat{\section}{
   \vspace{-10pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule\vspace{-5pt}]
+}{}{0em}{}[\titlerule\vspace{-6pt}]
 
 %Items formatting
-\setlist[itemize]{topsep=1.5pt}
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
 % Ensure that generated PDF is machine readable/ATS parsable
 \pdfgentounicode=1
 
@@ -52,23 +47,24 @@
 
 %----------HEADING----------%
 \begin{center}
-    {\LARGE \textbf{Jai Jayesh Shah}} \\
-    \vspace{5pt}
+    {\LARGE \textbf{[Candidate Name]}}\\
+    {\normalsize [Suggested Job Title based on JD]}\\
     \small
-    Ph: +1 (323) 334-7408 \quad Email: \href{mailto:jaijayes@usc.edu}{jaijayes@usc.edu} \\
-    LinkedIn: \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9} \\
-    \vspace{-8pt}
+    \faMapMarker*\ [Location]
+    \quad
+    \faPhone*\ [Phone]
+    \quad
+    \faEnvelope\ \href{mailto:[Email]}{[Email]}
+    \quad
+    \faLinkedin\ \href{[LinkedIn URL]}{[LinkedIn URL]}
 \end{center}
+\vspace{-13pt}
+
 
 %-----------EDUCATION-----------%
 \section*{Education}
 % Insert Education Data Here
 % Format: \textbf{University}, Location \hfill Dates \\ \textit{Degree} \hfill GPA \\ Related Coursework: ...
-
-%-----------SKILLS-----------%
-\section*{Technical Skills}
-% Insert Skills Data Here
-% Format: \textbf{Category:} Skills
 
 %-----------EXPERIENCE-----------%
 \section*{Work Experience}
@@ -79,6 +75,11 @@
 \section*{Projects}
 % Insert Projects Data Here
 % Format: \textbf{Project Name} \hfill Dates \\ \textit{Tech Stack} \begin{itemize} \item ... \end{itemize}
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+% Insert Skills Data Here
+% Format: \textbf{Category:} Skills
 
 %-----------RESEARCH-----------%
 \section*{Research}

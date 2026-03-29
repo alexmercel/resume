@@ -1,0 +1,137 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize Software Engineer \textbar\ Backend \& Distributed Systems}\\
+    \small
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com}{jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California (USC)}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+\textbf{Relevant Coursework:} AI Agents, Distributed Systems, Computer System Architecture, Algorithms, Database Management Systems.
+
+\vspace{3pt}
+\textbf{Vellore Institute of Technology (VIT)}, Vellore, India \hfill April 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication} \hfill CGPA: 9.04 / 10.00 \\
+\textbf{Relevant Coursework:} Web Technologies, Object Oriented Programming, Cloud Computing, Data Acquisition.
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    {\item{
+     \textbf{Languages}{: Python, C++, C, Java, JavaScript, SQL, HTML5, CSS3} \\
+     \textbf{Concepts \& Domains}{: Distributed Systems, Large-Scale System Design, Machine Learning, Computer Vision, AI Agents, Networking} \\
+     \textbf{Cloud \& Frameworks}{: AWS, CI/CD pipelines, Docker, PostgreSQL, React, Node.js, Flask, OpenCV}
+    }}
+\end{itemize}
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+
+\textbf{Accenture} \textbar\ \textit{Software Engineer} \hfill July 2022 -- Aug 2024
+\begin{itemize} \itemsep -2pt
+    \item Built and scaled \textbf{30+ RESTful microservices and APIs} supporting backend system design for \textbf{10k+ daily transactions}, improving distributed system integration, scalability, and production reliability.
+    \item Designed and deployed automated \textbf{CI/CD pipelines} using \textbf{GitHub Actions} and \textbf{AWS CodePipeline}, reducing release turnaround time by \textbf{70\%} and enabling reliable continuous delivery.
+    \item Defined API architecture with \textbf{OpenAPI 3.0} and implemented centralized \textbf{error handling and fault-tolerance}, reducing debugging time by \textbf{40\%}.
+    \item Optimized authentication caching, \textbf{rate limiting}, and performance tuning strategies, increasing overall system throughput by \textbf{25\%}.
+\end{itemize}
+
+\textbf{University of Southern California} \textbar\ \textit{Data Analyst} \hfill May 2025 -- Present
+\begin{itemize} \itemsep -2pt
+    \item Automated validation and testing frameworks using \textbf{Python} and LLM-driven scripts, processing \textbf{100,000+ records} and reducing manual reporting by \textbf{15 hours/week}.
+\end{itemize}
+
+\textbf{University of Southern California} \textbar\ \textit{Research Assistant} \hfill Aug 2025 -- Dec 2025
+\begin{itemize} \itemsep -2pt
+    \item Modeled \textbf{networked embedded systems} to evaluate gateway placement \textbf{strategies minimizing latency} and infrastructure cost under the guidance of \textbf{Dr. C. Baker}.
+\end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+
+\textbf{Healthcare \& Behavioral Insights App} \hfill \textit{2026} \\
+\textit{iOS, CareKit, Docker, PostgreSQL}
+\begin{itemize} \itemsep -2pt
+    \item Designed a longitudinal health-data analytics platform using CareKit to collect, store, and analyze patient-reported outcomes.
+    \item Built containerized backend services with \textbf{Docker} and \textbf{PostgreSQL}, deploying to \textbf{Heroku} to enable scalable data persistence and secure health record management.
+\end{itemize}
+
+\textbf{Design Space Exploration of Processors using GEM5 Simulator} \hfill \textit{2025} \\
+\textit{C++, GEM5, Computer Architecture}
+\begin{itemize} \itemsep -2pt
+    \item Evaluated microarchitectural trade-offs including \textbf{cache hierarchy}, \textbf{issue width}, and \textbf{reorder buffer} sizing.
+    \item Benchmarked performance impact of architectural modifications using \textbf{GEM5} simulation workloads.
+\end{itemize}
+
+\textbf{AadharVision} \hfill \textit{2021} \\
+\textit{Python (Flask), OpenCV, REST APIs}
+\begin{itemize} \itemsep -2pt
+    \item Engineered a computer-vision–based access management platform using \textbf{Flask} to process real-time occupancy monitoring and identity validation.
+\end{itemize}
+
+\textbf{Smart Mirror IoT Automation Platform} \hfill \textit{2020--2021} \\
+\textit{MQTT, Python, Node-RED, Distributed Systems}
+\begin{itemize} \itemsep -2pt
+    \item Architected a distributed IoT system using \textbf{MQTT publish–subscribe messaging} to coordinate communication between edge devices and a central controller.
+\end{itemize}
+
+%-----------EXTRACURRICULAR-----------%
+\section*{Extracurricular \& Workshops}
+\begin{itemize} \itemsep -2pt
+    \item \textbf{Conference:} Participant at POST/CON 2025, LA (June 4-5, 2025) -- Learned about AI-driven future of APIs.
+\end{itemize}
+
+\end{document}

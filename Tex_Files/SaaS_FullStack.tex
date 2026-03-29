@@ -1,0 +1,107 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+% Custom font
+\usepackage{mathptmx}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize Software Engineer \textbar\ Backend \& Distributed Systems}\\
+    \small
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com}{jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+\textbf{University of Southern California}, Los Angeles, CA \hfill Aug 2024 -- May 2026 \\
+\textit{Master of Science in Computer Engineering} \hfill GPA: 3.7/4.00 \\
+Related Coursework: Computer Networks, System Architecture, Algorithms, DBMS, AI Agents, Swift, Distributed Systems
+\textbf{Vellore Institute of Technology}, Vellore, India \hfill Apr 2018 -- May 2022 \\
+\textit{B.Tech. in Electronics and Communication (IoT and Sensors)} \hfill GPA: 9.04 / 10.00 \\
+Related Coursework: Object Oriented Programming, Data Structures \& Algorithms, Web Technologies, Cloud Computing
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+\textbf{Programming:} Python, Java, TypeScript/JavaScript, C++, SQL, Swift \\
+\textbf{Backend \& Frameworks:} Spring Boot, REST/GraphQL APIs, Microservices, Distributed Systems, Flask, Node.js, React \\
+\textbf{Data \& AI:} PostgreSQL, NoSQL, AI Agents, Claude Code, ChatGPT, LLMs, Computer Vision \\
+\textbf{Cloud \& Tools:} AWS, Docker, CI/CD, Kafka, Git, GitHub Actions, Tableau, Splunk, MQTT
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+\textbf{Accenture}, Bangalore, India \hfill Jul 2022 -- Aug 2024 \\
+\textit{Software Engineer}
+\begin{itemize}[noitemsep]
+    \item Designed and deployed automated \textbf{CI/CD pipelines} using \textbf{GitHub Actions} and \textbf{AWS CodePipeline}, reducing release turnaround time by \textbf{70\%} and enabling reliable continuous delivery.
+    \item Built and scaled \textbf{30+ RESTful microservices and APIs} supporting backend system design for \textbf{10k+ daily transactions}, improving distributed system integration, scalability, and production reliability.
+    \item Defined API architecture with \textbf{OpenAPI 3.0} and implemented centralized \textbf{error handling and fault-tolerance}, reducing debugging time by \textbf{40\%}.
+    \item Optimized authentication caching, \textbf{rate limiting}, and performance tuning strategies, increasing overall system throughput by \textbf{25\%}.
+\end{itemize}
+\textbf{USC MANN School of Pharmacy}, Los Angeles, CA \hfill May 2025 -- Present \\
+\textit{Data Analyst}
+\begin{itemize}[noitemsep]
+    \item Engineered \textbf{data processing and ETL-style workflows} including cleaning, transformation, and relational joins to support accurate reporting pipelines.
+    \item Enhanced \textbf{Salesforce data models} across \textbf{70+ objects} and delivered \textbf{30+ analytical reports} used by \textbf{50+ stakeholders}.
+    \item Automated validation and testing using \textbf{Python} and LLM-driven scripts, processing \textbf{100,000+ records} and reducing manual reporting by \textbf{15 hours/week}.
+    \item Developed \textbf{Tableau + SQL analytics solutions} to transform large-scale datasets into actionable insights, deploying dashboards to on-premise \textbf{Tableau Server} for organization-wide access.
+\end{itemize}
+%-----------PROJECTS-----------%
+\section*{Projects}
+\textbf{Healthcare \& Behavioral Insights App} \hfill 2026 \\
+\textit{Swift, SwiftUI, CareKit, Docker, PostgreSQL, Heroku}
+\begin{itemize}[noitemsep]
+    \item Developed a native iOS health analytics application using \textbf{CareKit} to capture and analyze longitudinal patient data, integrating task scheduling, outcome tracking, and real-time synchronization.
+    \item Built containerized backend services with \textbf{Docker} and \textbf{PostgreSQL}, deploying to \textbf{Heroku} to enable scalable data persistence and secure health record management.
+    \item Created interactive visualizations and feedback workflows to surface adherence trends, improving engagement by \textbf{25\%}.
+\end{itemize}
+\textbf{AadharVision} \hfill 2021 \\
+\textit{Python, Flask, OpenCV, Machine Learning, REST APIs}
+\begin{itemize}[noitemsep]
+    \item Engineered a computer-vision–based access management platform using \textbf{Flask} to process real-time occupancy monitoring and identity validation.
+    \item Implemented OCR and QR-driven verification pipelines integrated with external APIs, enabling automated authentication and compliance detection with \textbf{OpenCV}.
+    \item Optimized backend request handling to support concurrent validation events with low-latency processing.
+\end{itemize}
+\end{document}
