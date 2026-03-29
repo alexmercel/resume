@@ -1,6 +1,10 @@
 Data/*.md
 PDFs/*.pdf
+PDFs/*.aux
+PDFs/*.log
+PDFs/*.out
 Cover_Letters/*.txt
+Templates/Generic/*.tex
 Tex_Files/*.tex
 Tex_Files/*.json
 Tex_Files/*.pdf
