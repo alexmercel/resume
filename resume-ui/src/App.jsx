@@ -395,7 +395,8 @@ function GeneratorView({ state, setState }) {
           output: 'Resume package generated successfully.',
           metrics: data.metrics || null,
           coverLetter: data.coverLetter || '',
-          hasGeneratedResume: true
+          hasGeneratedResume: true,
+          pdfs: data.filename ? [{ name: data.filename, time: Date.now() }] : []
         });
         setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
       } else {
