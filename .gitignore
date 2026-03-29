@@ -1,1 +1,10 @@
 Data/*.md
+PDFs/*.pdf
+Cover_Letters/*.txt
+Tex_Files/*.tex
+Tex_Files/*.json
+Tex_Files/*.pdf
+Tex_Files/*.aux
+Tex_Files/*.log
+Tex_Files/*.out
+Build_Logs/*

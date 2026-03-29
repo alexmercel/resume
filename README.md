@@ -1,42 +1,200 @@
-# Resume Builder & Portfolio
-**Jai Jayesh Shah** | Master's Student in Computer Engineering @ USC
+# Resume Builder Studio
 
-## About Me
-I am a Computer Engineering graduate student at **USC**, specializing in **Computer Networks, Systems Architecture, and AI Agents**. With a background in Electronics and IoT from **VIT University**, I bridge the gap between hardware and software. I have professional experience as a **Backend Developer at Accenture** and currently serve as a TA/Course Producer at USC.
+Resume Builder Studio is a local React + Vite app for generating tailored resumes and cover letters from:
 
----
+- your markdown data files in `Data/`
+- LaTeX wireframe templates in `Templates/`
+- a pasted job description
+- a Gemini API key and model you configure in the app
 
-## Automated Resume Builder System
-This repository hosts a custom-built, automated resume generation system designed to create tailored, 1-page resumes for specific job descriptions while maintaining strict content integrity and formatting standards.
+The app is designed so personal data stays local. Runtime data such as `Data/*.md`, generated PDFs, cover letters, build logs, and local AI settings are ignored by git.
 
-### System Architecture
+## Requirements
 
-#### 1. Data Layer (`Data/`)
-The single source of truth. All content is stored in modular Markdown files, decoupled from formatting:
-- `education.md`: Degrees, GPAs, and Coursework.
-- `projects.md`: Technical projects (Software, Hardware, Automation).
-- `workex.md`: Professional experience (Accenture, USC, etc.).
-- `skills.md`: Comprehensive skill list categorized by domain.
-- `research.md` & `extracurricular.md`: Publications and leadership roles.
+- Node.js 18+ recommended
+- `npm`
+- A working LaTeX installation with `pdflatex`
+- A Google AI Studio / Gemini API key
 
-#### 2. Template Layer (`Templates/`)
-LaTeX templates serve as **structural wireframes** only. They contain no hardcoded personal data.
-- **Structure**: Defines layout, fonts, and section ordering.
-- **Flexibility**: Different wireframes for Software (General) vs. Hardware roles.
-- **Integrity**: Templates are never modified with data; new files are created for each generation.
+## Run The App
 
-#### 3. Generation Logic
-The system follows a strict set of rules (`generation_rules.md`) to generate targeted resumes:
-- **Targeted Generation**: Selects only the most relevant Skills, Projects, and Experience for a given Job Description (e.g., Apple Performance Engineer).
-- **One-Page Constraint**: Dynamic content selection ensures the resume fills exactly one page without overcrowding.
-- **Wireframe Injection**: Populates the selected wireframe with fresh data from the Data Layer.
-- **Automated Compilation**: Generates the final PDF automatically.
+1. Open a terminal in the repo root:
 
-### Workflow Example
-1.  **Input**: "Generate a resume for a Backend Role at Google."
-2.  **Selection**: System picks "Java, Python, Cloud" from `skills.md` and relevant Backend projects.
-3.  **Construction**: Creates `Google.tex` using the software wireframe.
-4.  **Output**: Compiles and saves `Google.pdf` in the `Generated/` directory.
+```bash
+cd "/path/to/resume"
+```
 
----
-*This approach ensures that every resume is hyper-customized, consistent, and generated in seconds.*
+2. Install frontend dependencies:
+
+```bash
+cd resume-ui
+npm install
+```
+
+3. Start the app:
+
+```bash
+npm run dev
+```
+
+4. Open the local Vite URL shown in the terminal, usually:
+
+```text
+http://localhost:5173
+```
+
+## First-Time Setup
+
+When the app detects missing or empty required data files, it automatically shows an onboarding screen.
+
+The onboarding flow lets you:
+
+- paste your Gemini API key
+- choose a Gemini model
+- upload an existing resume
+- parse that resume into the app's markdown format
+- review a checklist of created files and saved configuration
+
+After setup, you can continue editing everything inside the app.
+
+## Main Tabs
+
+### Profile & AI
+
+Use this tab to:
+
+- edit `Data/profile.md`
+- save your Gemini API key locally
+- choose the Gemini model used by the app
+- test the API key with a sample request
+
+Your Gemini settings are stored locally in:
+
+```text
+resume-ui/user-settings.json
+```
+
+This file is gitignored.
+
+### AI Generator
+
+Use this tab to:
+
+- paste a target job description
+- choose a base wireframe template
+- generate a tailored resume PDF
+- generate a cover letter
+- view keyword extraction, matched keywords, and ATS-style score feedback
+
+Generator state persists while you switch tabs and only resets on a full browser refresh.
+
+### Data Management
+
+Use this tab to edit your core content files:
+
+- `Data/projects.md`
+- `Data/workex.md`
+- `Data/education.md`
+- `Data/skills.md`
+
+`profile.md` is edited from `Profile & AI`, not from this tab.
+
+### Wireframe Templates
+
+Use this tab to:
+
+- edit LaTeX wireframe templates
+- preview compiled templates
+- create new templates
+
+### Generic Resumes
+
+Use this tab to manage generic reusable LaTeX resume templates.
+
+### History & Edit
+
+Use this tab to:
+
+- browse generated resume PDFs
+- browse saved cover letters
+- review original job descriptions
+- edit generated `.tex` files
+- recompile PDFs
+
+History now recognizes existing local PDFs and cover letters even when full metadata is missing.
+
+## How Generation Works
+
+The app now uses only these inputs when generating a resume:
+
+- the pasted job description
+- the selected LaTeX template
+- the current markdown data in `Data/`
+
+It is explicitly configured to ignore:
+
+- old PDFs
+- old generated `.tex` files
+- old history entries
+- previous candidates
+- previous runs
+
+Also, resume generation does **not** rewrite your source markdown files. Your `Data/*.md` files are only changed when you explicitly save from the in-app editors.
+
+## Important Folders
+
+- `Data/`: your local source-of-truth markdown data
+- `Templates/`: LaTeX wireframes and generic templates
+- `PDFs/`: generated resume PDFs
+- `Cover_Letters/`: generated cover letter text files
+- `Tex_Files/`: generated and editable LaTeX outputs
+- `Build_Logs/`: compilation artifacts and logs
+- `resume-ui/`: React frontend and local API layer
+
+## Privacy / Git Behavior
+
+The repository is configured so these local/runtime files are ignored by git:
+
+- `Data/*.md`
+- `PDFs/*.pdf`
+- `Cover_Letters/*.txt`
+- generated files in `Tex_Files/`
+- `Build_Logs/*`
+- `resume-ui/user-settings.json`
+- `.env` and `.env.*`
+
+This keeps personal content and API settings from being committed by default.
+
+## Troubleshooting
+
+### The app says no API key is configured
+
+Open `Profile & AI`, paste your Gemini API key, save it, and test it.
+
+### Resume generation succeeds but no preview appears
+
+Make sure `pdflatex` is installed and available on your machine. The app generates a `.tex` file first and then compiles it to PDF locally.
+
+### A new user cloned the repo and sees old personal content
+
+That means generated/runtime files were previously tracked in git history or still exist locally on that machine. The app now ignores those paths going forward, but existing tracked artifacts need to be removed from version control separately.
+
+### History is empty but PDFs exist locally
+
+History now scans local PDFs and cover letters directly. If the files are in `PDFs/` and `Cover_Letters/`, they should appear even without metadata JSON.
+
+## Development Notes
+
+Frontend app:
+
+```bash
+cd resume-ui
+npm run dev
+```
+
+Production build check:
+
+```bash
+cd resume-ui
+npm run build
+```

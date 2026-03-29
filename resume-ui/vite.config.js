@@ -78,6 +78,17 @@ function getOnboardingStatusPayload() {
   };
 }
 
+function cleanupLatexArtifacts(directory, baseName, preserve = []) {
+  const artifacts = ['.aux', '.log', '.out', '.fls', '.fdb_latexmk', '.synctex.gz', '.toc'];
+  artifacts.forEach((ext) => {
+    const targetPath = path.join(directory, `${baseName}${ext}`);
+    if (preserve.includes(targetPath)) return;
+    if (fs.existsSync(targetPath)) {
+      try { fs.unlinkSync(targetPath); } catch {}
+    }
+  });
+}
+
 function normalizeKeyword(value) {
   return (value || '')
     .toLowerCase()
@@ -426,28 +437,78 @@ RULES:
       if (req.url === '/api/history' && req.method === 'GET') {
         const texDir = path.resolve(__dirname, '../Tex_Files');
         const coverLettersDir = path.resolve(__dirname, '../Cover_Letters');
-        if (fs.existsSync(texDir)) {
-          const files = fs.readdirSync(texDir).filter(f => f.endsWith('.json'));
-          const history = files.map(f => {
-             const filePath = path.join(texDir, f);
-             try {
-                const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-                const coverLetterPath = data.coverLetterFile ? path.join(coverLettersDir, data.coverLetterFile) : null;
-                const coverLetter = coverLetterPath && fs.existsSync(coverLetterPath)
-                  ? fs.readFileSync(coverLetterPath, 'utf-8')
-                  : '';
-                return { ...data, coverLetter };
-             } catch (e) {
-                return null;
-             }
-          }).filter(Boolean).sort((a, b) => b.timestamp - a.timestamp); // Newest first
+        const pdfDir = path.resolve(__dirname, '../PDFs');
+        const historyMap = new Map();
 
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ history }));
-        } else {
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ history: [] }));
+        if (fs.existsSync(texDir)) {
+          const metadataFiles = fs.readdirSync(texDir).filter(f => f.endsWith('.json'));
+          metadataFiles.forEach((f) => {
+            const filePath = path.join(texDir, f);
+            try {
+              const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+              const key = data.company || path.basename(f, '.json');
+              historyMap.set(key, {
+                company: key,
+                timestamp: data.timestamp || fs.statSync(filePath).mtime.getTime(),
+                template: data.template || 'Unknown',
+                jd: data.jd || '',
+                coverLetterFile: data.coverLetterFile || `${key}_Cover_Letter.txt`,
+                metadataFile: f
+              });
+            } catch (e) {}
+          });
         }
+
+        if (fs.existsSync(pdfDir)) {
+          fs.readdirSync(pdfDir)
+            .filter(f => f.endsWith('.pdf'))
+            .forEach((f) => {
+              const key = path.basename(f, '.pdf');
+              const pdfPath = path.join(pdfDir, f);
+              const existing = historyMap.get(key) || {};
+              historyMap.set(key, {
+                company: key,
+                timestamp: existing.timestamp || fs.statSync(pdfPath).mtime.getTime(),
+                template: existing.template || 'Imported / Existing PDF',
+                jd: existing.jd || '',
+                coverLetterFile: existing.coverLetterFile || `${key}_Cover_Letter.txt`,
+                metadataFile: existing.metadataFile || '',
+                ...existing
+              });
+            });
+        }
+
+        if (fs.existsSync(coverLettersDir)) {
+          fs.readdirSync(coverLettersDir)
+            .filter(f => f.endsWith('.txt'))
+            .forEach((f) => {
+              const key = f.replace(/_Cover_Letter\.txt$/i, '');
+              const clPath = path.join(coverLettersDir, f);
+              const existing = historyMap.get(key) || {};
+              historyMap.set(key, {
+                company: key,
+                timestamp: existing.timestamp || fs.statSync(clPath).mtime.getTime(),
+                template: existing.template || 'Imported / Existing Cover Letter',
+                jd: existing.jd || '',
+                coverLetterFile: f,
+                metadataFile: existing.metadataFile || '',
+                ...existing
+              });
+            });
+        }
+
+        const history = [...historyMap.values()]
+          .map((item) => {
+            const coverLetterPath = item.coverLetterFile ? path.join(coverLettersDir, item.coverLetterFile) : null;
+            const coverLetter = coverLetterPath && fs.existsSync(coverLetterPath)
+              ? fs.readFileSync(coverLetterPath, 'utf-8')
+              : '';
+            return { ...item, coverLetter };
+          })
+          .sort((a, b) => b.timestamp - a.timestamp);
+
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ history }));
         return;
       }
 
@@ -567,6 +628,7 @@ RULES:
         fs.copyFileSync(templatePath, previewTexPath);
 
         exec(`pdflatex -interaction=nonstopmode "${previewName}"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
+           cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), previewName.replace('.tex', ''));
            res.setHeader('Content-Type', 'application/json');
            res.end(JSON.stringify({ success: true }));
         });
@@ -610,6 +672,7 @@ RULES:
            if (fs.existsSync(genPdfPath)) {
               fs.renameSync(genPdfPath, finalPdfPath);
            }
+           cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), baseName);
            
            res.setHeader('Content-Type', 'application/json');
            res.end(JSON.stringify({ success: true }));
@@ -723,6 +786,8 @@ ${content}
             const pass1Prompt = `
 You are an expert AI Career Coach and Resume Optimizer.
 I am providing you with a Target Job Description and a Candidate's Current Experience.
+You must use ONLY the data explicitly included in this request.
+You must IGNORE any prior resumes, prior candidates, prior PDFs, prior TeX files, prior history entries, or any cached assumptions.
 
 === IMPORTANT SYSTEM RULES AND CONSTRAINTS (Read Carefully) ===
 ${ruleText}
@@ -811,6 +876,8 @@ CRITICAL: Output ONLY valid JSON. Do not use Markdown JSON wrappers (\`\`\`json)
             // 3. Build Pipeline: Pass 2 (LaTeX Compilation)
             const aiPrompt = `
 You are an expert ATS Resume Builder acting as a backend API utility. Your task is to output a fully valid LaTeX file tailored to the user's TARGET JOB DESCRIPTION accurately using ONLY the Data files.
+You must use ONLY the JD, the selected template text, and the Data markdown content provided below.
+You must IGNORE any prior resumes, PDFs, TeX files, generated history, previously compiled outputs, or assumptions from earlier runs.
 
 === IMPORTANT SYSTEM RULES AND CONSTRAINTS (Read Carefully) ===
 ${ruleText}
@@ -846,6 +913,8 @@ ${templateText}
 
             const coverLetterPrompt = `
 You are an expert personalized Cover Letter writer.
+You must use ONLY the JD and candidate data included below.
+You must IGNORE any prior resumes, PDFs, TeX files, previous candidates, generated history, or assumptions from earlier runs.
 
 === STRICT RULES ===
 ${clRuleText}
@@ -939,18 +1008,7 @@ Draft a strict 300-400 word highly targeted Cover Letter explaining why this spe
                }
                const clTextFile = path.join(clDir, `${filename}_Cover_Letter.txt`);
                fs.writeFileSync(clTextFile, coverLetterText, 'utf-8');
-
-               // 7. Save Metadata JSON for History feature
-               currentGenStatus = "Finalizing generation and formatting metadata headers...";
-               const metadataPath = path.join(basePath, 'Tex_Files', `${filename}.json`);
-               const metaPayload = {
-                 timestamp: Date.now(),
-                 company: filename,
-                 jd: prompt,
-                 template: template,
-                 coverLetterFile: `${filename}_Cover_Letter.txt`
-               };
-               fs.writeFileSync(metadataPath, JSON.stringify(metaPayload, null, 2), 'utf-8');
+               cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
 
                // Respond success regardless of pdflatex warning squiggles
                res.setHeader('Content-Type', 'application/json');
