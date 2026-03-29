@@ -28,7 +28,8 @@ function App() {
     needsOnboarding: false,
     fileStatuses: [],
     settings: { geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite' },
-    models: []
+    models: [],
+    pdflatex: { installed: false, version: '' }
   });
   const [generatorState, setGeneratorState] = useState({
     jd: '',
@@ -53,7 +54,8 @@ function App() {
           needsOnboarding: !!data.needsOnboarding,
           fileStatuses: data.fileStatuses || [],
           settings: data.settings || { geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite' },
-          models: data.models || []
+          models: data.models || [],
+          pdflatex: data.pdflatex || { installed: false, version: '' }
         });
       })
       .catch(() => {
@@ -149,6 +151,7 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
     'gemini-2.0-flash-lite'
   ];
   const missingFiles = onboardingState.fileStatuses.filter((file) => !file.exists || !file.hasContent);
+  const pdflatex = onboardingState.pdflatex || { installed: false, version: '' };
 
   const handleImport = () => {
     if (!resumeFile) {
@@ -250,6 +253,24 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
             {status && (
               <div className={`status-banner ${result ? 'info' : 'warning'}`}>
                 {status}
+              </div>
+            )}
+
+            {!pdflatex.installed && (
+              <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem'}}>
+                <div style={{fontWeight: 700}}>pdflatex is not installed</div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  Resume PDFs cannot be generated until LaTeX is installed on this machine.
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  macOS: install MacTeX, then restart the terminal.
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is added to PATH.
+                </div>
               </div>
             )}
           </div>
@@ -635,6 +656,7 @@ function ProfileSettingsView() {
   const [settingsStatus, setSettingsStatus] = useState('');
   const [testStatus, setTestStatus] = useState('');
   const [testResponse, setTestResponse] = useState('');
+  const [pdflatexStatus, setPdflatexStatus] = useState({ installed: false, version: '' });
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash-lite');
   const [models, setModels] = useState([
@@ -660,6 +682,13 @@ function ProfileSettingsView() {
           setModel(data.settings.geminiModel || 'gemini-2.5-flash-lite');
         }
         if (data.models?.length) setModels(data.models);
+      })
+      .catch(console.error);
+
+    fetch('/api/system-check')
+      .then(res => res.json())
+      .then(data => {
+        if (data.pdflatex) setPdflatexStatus(data.pdflatex);
       })
       .catch(console.error);
   }, []);
@@ -761,6 +790,35 @@ function ProfileSettingsView() {
         </p>
 
         <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+          <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
+              <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
+              <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
+                {pdflatexStatus.installed ? 'Installed' : 'Missing'}
+              </span>
+            </div>
+            {pdflatexStatus.installed ? (
+              <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                {pdflatexStatus.version || 'pdflatex detected on this machine.'}
+              </div>
+            ) : (
+              <>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  PDF generation needs <code>pdflatex</code> installed and available in PATH.
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  macOS: install MacTeX, then restart the terminal/app.
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
+                </div>
+                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                  Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is in PATH.
+                </div>
+              </>
+            )}
+          </div>
+
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
             <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini API Key</label>
             <input
