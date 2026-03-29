@@ -1,0 +1,95 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize Software Engineer \textbar\ Backend \& Distributed Systems}\\
+    \small
+    \faMapMarker*\ Los Angeles, CA
+    \quad
+    \faPhone*\ +1 323-334-7408
+    \quad
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com}{jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9}{linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+% Insert Education Data Here
+% Format: \textbf{University}, Location \hfill Dates \\ \textit{Degree} \hfill GPA \\ Related Coursework: ...
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+% Insert Experience Data Here
+% Format: \textbf{Company}, Location \hfill Dates \\ \textit{Role} \begin{itemize} \item ... \end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+% Insert Projects Data Here
+% Format: \textbf{Project Name} \hfill Dates \\ \textit{Tech Stack} \begin{itemize} \item ... \end{itemize}
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+% Insert Skills Data Here
+% Format: \textbf{Category:} Skills
+
+%-----------RESEARCH-----------%
+\section*{Research}
+% Insert Research Data Here
+% Format: \textbf{Title} \\ Details...
+
+%-----------CERTIFICATIONS & AWARDS-----------%
+\section*{Certifications \& Awards}
+\begin{itemize} \itemsep -2pt
+    % Insert Certifications Data Here
+\end{itemize}
+
+\end{document}

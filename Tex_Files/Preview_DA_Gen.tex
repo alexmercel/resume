@@ -1,0 +1,141 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-12pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,        % removes space above list
+    partopsep=0pt,     % removes extra paragraph spacing
+    parsep=0pt         % removes spacing inside items
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{Jai Jayesh Shah}}\\
+    {\normalsize Data Analyst \textbar\ Salesforce Developer \textbar\ CRM \& Business Intelligence Analytics} \\
+    \small
+    \faMapMarker*\ Los Angeles, CA
+    \quad
+    \faPhone*\ +1 323-334-7408
+    \quad
+    \faEnvelope\ \href{mailto:jaishah.work@gmail.com} {jaishah.work@gmail.com}
+    \quad
+    \faLinkedin\ \href{https://www.linkedin.com/in/jaishah9} {linkedin.com/in/jaishah9}
+\end{center}
+\vspace{-13pt}
+
+%-------------------- EDUCATION --------------------
+\section*{Education}
+
+\textbf{University of Southern California}, \textit{Los Angeles, CA} \hfill Aug 2024 -- May 2026 \\
+M.S. Computer Engineering \hfill GPA: 3.7/4.0 \\
+Relevant Coursework: Database Management Systems, Distributed Systems, Algorithms, Computer Networks
+
+\vspace{4pt}
+
+\textbf{Vellore Institute of Technology}, \textit{Vellore, India }\hfill Apr 2018 -- May 2022 \\
+B.Tech. Electronics \& Communication (IoT \& Sensors) \hfill CGPA: 9.04/10
+
+%-------------------- EXPERIENCE --------------------
+\section*{Professional Experience}
+
+\textbf{Data Analyst} – \textit{USC MANN School of Pharmacy} \hfill May 2025 -- Present
+\begin{itemize}
+\item Developed enterprise analytics dashboards using Tableau and SQL, transforming large datasets into actionable insights for academic and administrative decision-making.
+\item Designed ETL-style workflows including data cleaning, transformation, and relational joins to ensure accurate reporting pipelines.
+\item Optimized Salesforce environment across 70+ objects and built 30+ analytical reports supporting 50+ stakeholders.
+\item Automated validation pipelines using Python to process 100,000+ records, reducing manual reporting by 15 hours/week.
+\item Implemented Nintex DocGen automation to streamline document generation and workflow efficiency.
+\item Published dashboards to on-prem Tableau Server, improving organization-wide access to real-time analytics.
+\end{itemize}
+
+\textbf{Advanced Application Engineer} – \textit{Accenture} \hfill Jul 2022 -- Aug 2024
+\begin{itemize}
+\item Designed and delivered 30+ API integrations using MuleSoft and Salesforce/APEX supporting 10k+ daily transactions.
+\item Built scalable data integration and transformation workflows enabling CRM analytics and system synchronization.
+\item Authored OpenAPI specifications and implemented centralized error-handling frameworks, reducing debugging time by 40\%.
+\item Engineered CI/CD pipelines using GitHub Actions and AWS CodePipeline, reducing deployment time by 70\%.
+\item Integrated monitoring using Splunk and Datadog to ensure data reliability and operational visibility.
+\item Worked in Agile development environments contributing to iterative delivery, validation, and system enhancements.
+\end{itemize}
+
+%-------------------- PROJECT EXPERIENCE --------------------
+\section*{Projects}
+
+\textbf{Healthcare Analytics Application}
+\begin{itemize}
+\item Designed a longitudinal health-data analytics platform using CareKit to collect, store, and analyze patient-reported outcomes.
+\item Built structured data pipelines with PostgreSQL to manage secure ingestion, transformation, and retrieval of health metrics.
+\item Developed visualization workflows to identify trends and behavioral insights, increasing user engagement by 25\%.
+\end{itemize}
+
+
+\textbf{AadharVision Data Monitoring Platform}
+\begin{itemize}
+\item Developed a real-time data aggregation system to track occupancy and compliance metrics using computer vision inputs.
+\item Built backend workflows to process OCR-derived identity data and integrate validated records into reporting pipelines.
+\item Enabled analytics-driven alerts and monitoring dashboards to support operational decision-making.
+\end{itemize}
+
+
+\textbf{Smart Mirror IoT Analytics Platform}
+\begin{itemize}
+\item Engineered a real-time data streaming pipeline using MQTT to collect environmental and device telemetry.
+\item Designed Node-RED workflows to transform, route, and visualize incoming data for live monitoring dashboards.
+\item Built event-driven automation enabling continuous updates and analytics-based notifications.
+\end{itemize}
+
+
+
+%-------------------- TECHNICAL SKILLS --------------------
+\section*{Technical Skills}
+
+\textbf{Data \& Analytics:} SQL, Tableau, ETL Pipelines, Data Visualization, Data Cleaning, Data Validation
+ \\
+\textbf{Salesforce Ecosystem:} Salesforce CRM, APEX, Workflows, Reporting, Object Modeling, Nintex DocGen \\
+\textbf{Integration \& APIs:} MuleSoft, REST APIs, OpenAPI 3.0, DataWeave, API Development \\
+\textbf{Programming:} Python, C++, JavaScript \\
+\textbf{Platforms \& Tools:} AWS, GitHub Actions, Docker, Splunk, Datadog, Postman, JIRA
+
+%-------------------- CERTIFICATIONS --------------------
+\section*{Certification}
+
+MuleSoft Certified Developer (MCD Level 1)
+
+\end{document}

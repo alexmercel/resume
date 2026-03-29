@@ -1,0 +1,15 @@
+Dear Costco Travel Hiring Team,
+
+I am writing to express my strong interest in the Full Stack Software Engineer position at Costco Travel. With a Master's degree in Computer Engineering from USC and two years of industry experience as a Software Engineer at Accenture, I have developed deep technical expertise in designing and scaling Java-based Enterprise applications, REST/SOAP microservices, and relational databases. 
+
+During my time at Accenture, I thrived in an Agile/Scrum environment, building and scaling over 30 RESTful and SOAP microservices using Java Spring Boot to support 10,000+ daily transactions. I routinely designed robust data-tier frameworks using Hibernate ORM and T-SQL to connect to relational databases, taking charge of data models, error handling, and end-to-end CI/CD pipelines to ensure our solutions remained secure, scalable, and durable. More recently at USC, I have continued to engineer secure data processing platforms utilizing Docker and PostgreSQL, while communicating technical requirements clearly throughout the entire SDLC.
+
+Costco Travel’s reputation as one of the best worldwide companies to work for is incredibly inspiring. I am highly motivated by the opportunity to apply my creative problem-solving skills and full-stack expertise towards enhancing costcotravel.com and its agent site. I easily shift focus with changing priorities and possess a strong passion for continuous self-improvement in small, goal-focused teams.
+
+Thank you for your time and consideration. I would welcome the opportunity to discuss how my technical background and problem-solving drive make me a great fit for Costco Travel.
+
+Sincerely,
+
+Jai Jayesh Shah
+jaishah.work@gmail.com
+linkedin.com/in/jaishah9
