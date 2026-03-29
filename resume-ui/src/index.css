@@ -94,6 +94,34 @@ body {
   overflow: hidden;
 }
 
+.app-footer {
+  border-top: 1px solid var(--border-color);
+  background: rgba(10, 10, 12, 0.62);
+  backdrop-filter: var(--glass-blur);
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.app-footer a {
+  color: #c4b5fd;
+  text-decoration: none;
+  transition: color var(--motion-smooth), transform var(--motion-smooth);
+}
+
+.app-footer a:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.app-footer-heart {
+  color: #ef4444;
+}
+
 .sidebar {
   width: 250px;
   min-width: 250px;
@@ -321,6 +349,39 @@ button {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
+.latex-setup-card {
+  overflow: visible;
+}
+
+.latex-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.latex-setup-panel {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.latex-setup-eyebrow {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.latex-setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.latex-setup-step {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .toolbar-tabs {
   display: flex;
   gap: 0.75rem;
@@ -434,6 +495,21 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
+  height: 100%;
+}
+
+.history-layout {
+  display: grid;
+  grid-template-columns: 34% 66%;
+  gap: 1.5rem;
+  height: 100%;
+  width: calc(100% - 3rem);
+  box-sizing: border-box;
+}
+
+.history-archive-panel,
+.history-preview-panel {
+  min-width: 0;
   height: 100%;
 }
 
@@ -666,7 +742,7 @@ button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  margin-top: 1.25rem;
+  margin-top: 0.9rem;
 }
 
 .applications-layout {
@@ -841,8 +917,8 @@ button {
 
 .applications-chart-card {
   position: relative;
-  min-height: 320px;
-  padding: 1.5rem 1rem 0.75rem;
+  min-height: 430px;
+  padding: 1.75rem 1rem 0.9rem;
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.08);
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(255,255,255,0.02));
@@ -932,6 +1008,10 @@ button {
   .generator-score-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .latex-setup-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -963,7 +1043,8 @@ button {
   .applications-layout,
   .applications-summary-grid,
   .opportunities-toolbar,
-  .opportunities-grid {
+  .opportunities-grid,
+  .history-layout {
     grid-template-columns: 1fr;
   }
 

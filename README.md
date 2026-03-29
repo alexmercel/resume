@@ -6,6 +6,7 @@ Resume Builder Studio is a local React + Vite app for generating tailored resume
 - LaTeX wireframe templates in `Templates/`
 - a pasted job description
 - a Gemini API key and model you configure in the app
+- curated opportunity feeds from public GitHub job boards
 
 The app is designed so personal data stays local. Runtime data such as `Data/*.md`, generated PDFs, cover letters, build logs, and local AI settings are ignored by git.
 
@@ -53,6 +54,8 @@ The onboarding flow lets you:
 - choose a Gemini model
 - upload an existing resume
 - parse that resume into the app's markdown format
+- complete the LaTeX setup wizard with OS-specific installer guidance
+- run a LaTeX readiness check against the packages used by the app templates
 - review a checklist of created files and saved configuration
 
 After setup, you can continue editing everything inside the app.
@@ -67,6 +70,7 @@ Use this tab to:
 - save your Gemini API key locally
 - choose the Gemini model used by the app
 - test the API key with a sample request
+- view LaTeX / PDF engine status
 
 Your Gemini settings are stored locally in:
 
@@ -84,9 +88,14 @@ Use this tab to:
 - choose a base wireframe template
 - generate a tailored resume PDF
 - generate a cover letter
+- copy the generated cover letter text
+- export the cover letter as a Word `.doc`
+- run a humanization pass on the cover letter
 - view keyword extraction, matched keywords, and ATS-style score feedback
 
 Generator state persists while you switch tabs and only resets on a full browser refresh.
+
+The generator only shows a PDF after a fresh generation in the current browser session. Old local PDFs do not prefill the `AI Resume` card anymore.
 
 ### Data Management
 
@@ -123,6 +132,27 @@ Use this tab to:
 
 History now recognizes existing local PDFs and cover letters even when full metadata is missing.
 
+### Apply Tracker
+
+Use this tab to:
+
+- track daily application momentum based on generated resumes
+- view summary metrics like today count, 7-day total, and 5+/day streak
+- interact with a visual graph of recent activity
+
+The tracker is read-only. It is automatically driven by successful resume generations and does not support manual logging.
+
+### Opportunities
+
+Use this tab to:
+
+- browse curated internship and new-grad opportunities aggregated from public GitHub job boards
+- filter by search, role type, source, and posted date window
+- refresh the feed manually when you want newer data
+- open the direct apply link for a role
+
+The opportunities tab loads from a local cache when opened and only refreshes when you click `Refresh Sources`.
+
 ## How Generation Works
 
 The app now uses only these inputs when generating a resume:
@@ -150,6 +180,7 @@ Also, resume generation does **not** rewrite your source markdown files. Your `D
 - `Tex_Files/`: generated and editable LaTeX outputs
 - `Build_Logs/`: compilation artifacts and logs
 - `resume-ui/`: React frontend and local API layer
+- `resume-ui/opportunities-cache.json`: cached opportunity feed data
 
 ## Privacy / Git Behavior
 
@@ -173,7 +204,7 @@ Open `Profile & AI`, paste your Gemini API key, save it, and test it.
 
 ### Resume generation succeeds but no preview appears
 
-Make sure `pdflatex` is installed and available on your machine. The app generates a `.tex` file first and then compiles it to PDF locally.
+Make sure `pdflatex` is installed and available on your machine. Use the onboarding LaTeX setup wizard or the status block in `Profile & AI`, then run the readiness check. The app generates a `.tex` file first and then compiles it to PDF locally.
 
 ### A new user cloned the repo and sees old personal content
 
@@ -182,6 +213,10 @@ That means generated/runtime files were previously tracked in git history or sti
 ### History is empty but PDFs exist locally
 
 History now scans local PDFs and cover letters directly. If the files are in `PDFs/` and `Cover_Letters/`, they should appear even without metadata JSON.
+
+### Opportunities tab shows no roles
+
+The tab reads from the local cache first. If no cache exists yet, open the tab and click `Refresh Sources` to pull the latest opportunities from the configured GitHub feeds.
 
 ## Development Notes
 
