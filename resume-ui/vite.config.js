@@ -89,6 +89,25 @@ function cleanupLatexArtifacts(directory, baseName, preserve = []) {
   });
 }
 
+function ensureDir(directory) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+}
+
+function checkPdflatexInstalled() {
+  return new Promise((resolve) => {
+    exec('pdflatex --version', (error, stdout) => {
+      if (error) {
+        resolve({ installed: false, version: '' });
+        return;
+      }
+      const firstLine = (stdout || '').split('\n')[0]?.trim() || '';
+      resolve({ installed: true, version: firstLine });
+    });
+  });
+}
+
 function normalizeKeyword(value) {
   return (value || '')
     .toLowerCase()
@@ -168,13 +187,22 @@ const API_PLUGIN = () => ({
           return;
       }
 
+      if (req.url === '/api/system-check' && req.method === 'GET') {
+          const pdflatex = await checkPdflatexInstalled();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ pdflatex }));
+          return;
+      }
+
       if (req.url === '/api/onboarding-status' && req.method === 'GET') {
           const settings = readSettings();
+          const pdflatex = await checkPdflatexInstalled();
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             ...getOnboardingStatusPayload(),
             settings,
-            models: COMMON_FREE_TIER_MODELS
+            models: COMMON_FREE_TIER_MODELS,
+            pdflatex
           }));
           return;
       }
@@ -614,6 +642,7 @@ RULES:
         const folder = type === 'generic' ? 'Generic' : 'Wireframes';
         const basePath = path.resolve(__dirname, '..');
         const exec = require('child_process').exec;
+        ensureDir(path.join(basePath, 'Tex_Files'));
         
         const templatePath = path.join(basePath, `Templates/${folder}`, fileName);
         if(!fs.existsSync(templatePath)) {
@@ -628,7 +657,14 @@ RULES:
         fs.copyFileSync(templatePath, previewTexPath);
 
         exec(`pdflatex -interaction=nonstopmode "${previewName}"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
+           const previewPdfPath = path.join(basePath, 'Tex_Files', `${previewName.replace('.tex', '')}.pdf`);
            cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), previewName.replace('.tex', ''));
+           if (err || !fs.existsSync(previewPdfPath)) {
+             res.statusCode = 500;
+             res.setHeader('Content-Type', 'application/json');
+             res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile template preview.' }));
+             return;
+           }
            res.setHeader('Content-Type', 'application/json');
            res.end(JSON.stringify({ success: true }));
         });
@@ -663,12 +699,21 @@ RULES:
         const fileName = decodeURIComponent(req.url.split('/api/compile/')[1].split('?')[0]);
         const basePath = path.resolve(__dirname, '..');
         const exec = require('child_process').exec;
+        ensureDir(path.join(basePath, 'Tex_Files'));
+        ensureDir(path.join(basePath, 'PDFs'));
         
         exec(`pdflatex -interaction=nonstopmode "${fileName}"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
            const baseName = fileName.replace('.tex', '');
            const genPdfPath = path.join(basePath, 'Tex_Files', `${baseName}.pdf`);
            const finalPdfPath = path.join(basePath, 'PDFs', `${baseName}.pdf`);
            
+           if (err || !fs.existsSync(genPdfPath)) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile PDF.' }));
+              return;
+           }
+
            if (fs.existsSync(genPdfPath)) {
               fs.renameSync(genPdfPath, finalPdfPath);
            }
@@ -767,6 +812,9 @@ ${content}
             const basePath = path.resolve(__dirname, '..');
             const { apiKey, model } = getGeminiConfig();
             if (!apiKey) throw new Error('No Gemini API key configured. Save one in the Profile tab before generating.');
+            ensureDir(path.join(basePath, 'Tex_Files'));
+            ensureDir(path.join(basePath, 'PDFs'));
+            ensureDir(path.join(basePath, 'Cover_Letters'));
             
             // 1. Gather Context
             const read = p => fs.readFileSync(path.join(basePath, p), 'utf-8');
@@ -997,15 +1045,20 @@ Draft a strict 300-400 word highly targeted Cover Letter explaining why this spe
                const genPdfPath = path.join(basePath, 'Tex_Files', `${filename}.pdf`);
                const finalPdfPath = path.join(basePath, 'PDFs', `${filename}.pdf`);
                
-               if (fs.existsSync(genPdfPath)) {
-                  fs.renameSync(genPdfPath, finalPdfPath);
+               if (err || !fs.existsSync(genPdfPath)) {
+                  cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
+                  currentGenStatus = "Idle";
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile PDF. Ensure pdflatex is installed on this machine.' }));
+                  return;
                }
+
+               fs.renameSync(genPdfPath, finalPdfPath);
 
                // Cover Letter Saving
                const clDir = path.join(basePath, 'Cover_Letters');
-               if (!fs.existsSync(clDir)) {
-                  fs.mkdirSync(clDir, { recursive: true });
-               }
+               ensureDir(clDir);
                const clTextFile = path.join(clDir, `${filename}_Cover_Letter.txt`);
                fs.writeFileSync(clTextFile, coverLetterText, 'utf-8');
                cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
