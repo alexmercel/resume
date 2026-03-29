@@ -62,7 +62,7 @@ function App() {
         setOnboardingState((prev) => ({ ...prev, loading: false }));
       });
   }, []);
-  
+
   return (
     <div className="app-container">
       <header className="header">
@@ -111,6 +111,18 @@ function App() {
           >
             📜 History & Edit
           </div>
+          <div 
+            className={`nav-item ${activeTab === 'tracker' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tracker')}
+          >
+            🎯 Apply Tracker
+          </div>
+          <div 
+            className={`nav-item ${activeTab === 'opportunities' ? 'active' : ''}`}
+            onClick={() => setActiveTab('opportunities')}
+          >
+            🔎 Opportunities
+          </div>
         </aside>
         
         {activeTab === 'generator' && <GeneratorView state={generatorState} setState={setGeneratorState} />}
@@ -119,6 +131,8 @@ function App() {
         {activeTab === 'templates' && <TemplatesView type="wireframes" />}
         {activeTab === 'generic' && <TemplatesView type="generic" />}
         {activeTab === 'history' && <HistoryView />}
+        {activeTab === 'tracker' && <ApplicationsView />}
+        {activeTab === 'opportunities' && <OpportunitiesView />}
         
       </main>
 
@@ -130,6 +144,39 @@ function App() {
             setActiveTab('profile');
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function LatexInstallHelp({ pdflatexStatus }) {
+  return (
+    <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
+        <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
+        <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
+          {pdflatexStatus.installed ? 'Installed' : 'Missing'}
+        </span>
+      </div>
+      {pdflatexStatus.installed ? (
+        <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+          {pdflatexStatus.version || 'pdflatex detected on this machine.'}
+        </div>
+      ) : (
+        <>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            PDF generation needs <code>pdflatex</code> installed and available in PATH.
+          </div>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            macOS: install MacTeX, then restart the terminal/app.
+          </div>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
+          </div>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is in PATH.
+          </div>
+        </>
       )}
     </div>
   );
@@ -257,21 +304,7 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
             )}
 
             {!pdflatex.installed && (
-              <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem'}}>
-                <div style={{fontWeight: 700}}>pdflatex is not installed</div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  Resume PDFs cannot be generated until LaTeX is installed on this machine.
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  macOS: install MacTeX, then restart the terminal.
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is added to PATH.
-                </div>
-              </div>
+              <LatexInstallHelp pdflatexStatus={pdflatex} />
             )}
           </div>
 
@@ -332,6 +365,8 @@ function GeneratorView({ state, setState }) {
     clOpen,
     hasGeneratedResume
   } = state;
+  const [pdflatexStatus, setPdflatexStatus] = useState({ installed: true, version: '' });
+  const [isHumanizing, setIsHumanizing] = useState(false);
   const resultsRef = React.useRef(null);
   const updateGeneratorState = (patch) => {
     setState((prev) => ({ ...prev, ...patch }));
@@ -365,6 +400,17 @@ function GeneratorView({ state, setState }) {
          }
       })
       .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/system-check')
+      .then(res => res.json())
+      .then(data => {
+        if (data.pdflatex) setPdflatexStatus(data.pdflatex);
+      })
+      .catch(() => {
+        setPdflatexStatus({ installed: false, version: '' });
+      });
   }, []);
 
   // Poll for PDFs
@@ -431,6 +477,25 @@ function GeneratorView({ state, setState }) {
         output: 'Failed to connect to local API.'
       });
     });
+  };
+
+  const handleHumanizeCoverLetter = () => {
+    if (!coverLetter.trim() || isHumanizing) return;
+    setIsHumanizing(true);
+    fetch('/api/humanize-cover-letter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverLetter, jd })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to humanize cover letter.');
+        updateGeneratorState({ coverLetter: data.coverLetter || coverLetter });
+      })
+      .catch((error) => {
+        updateGeneratorState({ output: `Error: ${error.message}` });
+      })
+      .finally(() => setIsHumanizing(false));
   };
 
   const hasResults = hasGeneratedResume && (pdfs.length > 0 || !!coverLetter || !!metrics);
@@ -533,12 +598,15 @@ function GeneratorView({ state, setState }) {
             <button
               className="primary-button"
               onClick={handleGenerate}
-              disabled={isGenerating}
-              style={{ opacity: isGenerating ? 0.7 : 1, minWidth: '210px' }}
+              disabled={isGenerating || !pdflatexStatus.installed}
+              style={{ opacity: (isGenerating || !pdflatexStatus.installed) ? 0.7 : 1, minWidth: '210px' }}
             >
               {isGenerating ? '⏳ Generating...' : '🚀 Auto-Generate Resume'}
             </button>
           </div>
+          {!pdflatexStatus.installed && (
+            <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
+          )}
           {/* Live status strip while running */}
           {isGenerating && output && (
             <div className="status-banner info">
@@ -598,6 +666,18 @@ function GeneratorView({ state, setState }) {
                 {coverLetter && <span style={{fontSize: '0.875rem', color: '#10b981', marginLeft: '0.75rem'}}>Ready</span>}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {coverLetter && (
+                  <button
+                    className="secondary-button"
+                    style={{padding: '0.4rem 0.8rem', fontSize: '0.875rem'}}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleHumanizeCoverLetter();
+                    }}
+                  >
+                    {isHumanizing ? 'Humanizing...' : 'Humanization Pass'}
+                  </button>
+                )}
                 {coverLetter && (
                   <button
                     className="primary-button"
@@ -790,34 +870,7 @@ function ProfileSettingsView() {
         </p>
 
         <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-          <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
-              <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
-              <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
-                {pdflatexStatus.installed ? 'Installed' : 'Missing'}
-              </span>
-            </div>
-            {pdflatexStatus.installed ? (
-              <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                {pdflatexStatus.version || 'pdflatex detected on this machine.'}
-              </div>
-            ) : (
-              <>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  PDF generation needs <code>pdflatex</code> installed and available in PATH.
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  macOS: install MacTeX, then restart the terminal/app.
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  Ubuntu/Debian: run <code>sudo apt update && sudo apt install texlive-latex-base texlive-fonts-recommended texlive-latex-extra</code>
-                </div>
-                <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-                  Windows: install MiKTeX or TeX Live and ensure <code>pdflatex</code> is in PATH.
-                </div>
-              </>
-            )}
-          </div>
+          <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
             <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini API Key</label>
@@ -1343,6 +1396,352 @@ function HistoryView() {
                )}
             </div>
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ApplicationsView() {
+  const [applications, setApplications] = useState([]);
+  const [hoveredDay, setHoveredDay] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/applications')
+      .then(res => res.json())
+      .then(data => setApplications(data.applications || []))
+      .catch(console.error);
+  }, []);
+
+  const today = new Date();
+  const dailySeries = Array.from({ length: 7 }, (_, idx) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - idx));
+    const key = date.toISOString().slice(0, 10);
+    const count = applications.filter((item) => item.appliedOn === key).length;
+    return {
+      key,
+      label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      count
+    };
+  });
+
+  const todaysCount = dailySeries[dailySeries.length - 1]?.count || 0;
+  const weeklyTotal = dailySeries.reduce((sum, day) => sum + day.count, 0);
+  const currentStreak = [...dailySeries].reverse().reduce((acc, day) => {
+    if (acc.broken) return acc;
+    if (day.count >= 5) return { value: acc.value + 1, broken: false };
+    return { value: acc.value, broken: true };
+  }, { value: 0, broken: false }).value;
+  const selectedDay = hoveredDay || dailySeries[dailySeries.length - 1];
+  const chartMax = Math.max(5, ...dailySeries.map((day) => day.count));
+
+  return (
+    <div className="hide-scrollbar" style={{padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 120px)', overflowY: 'auto', width: '100%', boxSizing: 'border-box'}}>
+      <div className="glass-panel" style={{margin: 0}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start'}}>
+          <div>
+            <h2 className="panel-title" style={{marginBottom: '0.5rem'}}>Daily Apply Quest</h2>
+            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
+              Every successful resume generation is counted automatically here. Aim for at least 5 tailored resumes per day, track momentum, and keep the streak alive.
+            </p>
+          </div>
+          <div className="soft-pill success">Goal: 5/day</div>
+        </div>
+
+        <div className="applications-summary-grid">
+          <div className="generator-score-card">
+            <div className="generator-score-label">Applied Today</div>
+            <div className="generator-score-value">{todaysCount}</div>
+          </div>
+          <div className="generator-score-card success">
+            <div className="generator-score-label">7-Day Total</div>
+            <div className="generator-score-value">{weeklyTotal}</div>
+          </div>
+          <div className={`generator-score-card ${currentStreak > 0 ? 'excellent' : 'warning'}`}>
+            <div className="generator-score-label">5+/Day Streak</div>
+            <div className="generator-score-value">{currentStreak}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="applications-layout">
+        <div className="glass-panel" style={{margin: 0}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap'}}>
+            <h2 className="panel-title" style={{margin: 0}}>Interactive Apply Graph</h2>
+            <div className="soft-pill">{selectedDay.label}: {selectedDay.count} applications</div>
+          </div>
+
+          <div className="applications-chart-card">
+            <div className="applications-goal-line" style={{ bottom: `${(5 / chartMax) * 100}%` }}>
+              <span>Goal 5</span>
+            </div>
+            <div className="applications-chart">
+              {dailySeries.map((day) => (
+                <button
+                  key={day.key}
+                  type="button"
+                  className={`applications-bar ${day.count >= 5 ? 'hit-goal' : ''} ${selectedDay.key === day.key ? 'active' : ''}`}
+                  style={{ height: `${Math.max(10, (day.count / chartMax) * 100)}%` }}
+                  onMouseEnter={() => setHoveredDay(day)}
+                  onFocus={() => setHoveredDay(day)}
+                  onMouseLeave={() => setHoveredDay(null)}
+                >
+                  <span className="applications-bar-count">{day.count}</span>
+                  <span className="applications-bar-label">{day.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel" style={{margin: 0}}>
+          <h2 className="panel-title">Auto-Tracked Progress</h2>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7}}>
+            <p style={{margin: 0}}>
+              The tracker is now linked only to generated resumes. There is no manual add or log flow here anymore.
+            </p>
+            <p style={{margin: 0}}>
+              Generate a resume from the AI Generator tab and it will appear here automatically with the detected company, role, date, and cover-letter status.
+            </p>
+            <div className="surface-block" style={{padding: '1rem'}}>
+              <div style={{fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)'}}>What counts toward the goal</div>
+              <div>One successful generated resume PDF = one tracked application effort.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{margin: 0}}>
+        <h2 className="panel-title">Generated Resume Activity</h2>
+        {applications.length === 0 ? (
+          <p style={{margin: 0, color: 'var(--text-secondary)'}}>No generated resumes tracked yet. Generate a resume from the AI Generator tab to start building your streak.</p>
+        ) : (
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+            {applications.slice(0, 12).map((item) => (
+              <div key={item.id} className="archive-item">
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start'}}>
+                  <div>
+                    <div style={{fontWeight: 700}}>{item.company}</div>
+                    <div style={{color: 'var(--text-secondary)', marginTop: '0.25rem'}}>{item.role}</div>
+                  </div>
+                  <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+                    <div className="soft-pill">{item.appliedOn}</div>
+                    {item.hasCoverLetter && <div className="soft-pill success">Cover letter</div>}
+                  </div>
+                </div>
+                {item.filename && (
+                  <div style={{marginTop: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.6}}>
+                    Generated file: {item.filename}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OpportunitiesView() {
+  const [opportunities, setOpportunities] = useState([]);
+  const [sources, setSources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [meta, setMeta] = useState({ updatedAt: '', fetchedAt: '', fromCache: false, stale: false });
+  const [filters, setFilters] = useState({
+    search: '',
+    roleType: 'all',
+    source: 'all',
+    postedWindow: 'all'
+  });
+
+  const loadOpportunities = (refresh = false) => {
+    setLoading(true);
+    setStatus(refresh ? 'Refreshing GitHub job feeds...' : 'Loading cached opportunities...');
+    fetch(`/api/opportunities${refresh ? '?refresh=1' : '?cache_only=1'}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load opportunities.');
+        setOpportunities(data.opportunities || []);
+        setSources(data.sources || []);
+        setMeta({
+          updatedAt: data.updatedAt || '',
+          fetchedAt: data.fetchedAt || '',
+          fromCache: !!data.fromCache,
+          stale: !!data.stale
+        });
+        setStatus(refresh
+          ? 'Fetched the latest opportunities from GitHub sources.'
+          : ((data.opportunities || []).length
+              ? 'Showing cached opportunities. Use Refresh Sources when you want a new pull.'
+              : 'No cached opportunities yet. Click Refresh Sources to pull the latest roles.'));
+      })
+      .catch((error) => {
+        setStatus(error.message || 'Failed to load opportunities.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadOpportunities(false);
+  }, []);
+
+  const uniqueSources = [...new Map(sources.map((source) => [source.sourceId, source])).values()];
+  const matchesPostedWindow = (age, postedWindow) => {
+    if (postedWindow === 'all') return true;
+    const normalized = (age || '').toLowerCase().trim();
+    const match = normalized.match(/(\d+)\s*(h|d|w|mo|m)/);
+    if (!match) return false;
+    const value = Number(match[1]);
+    const unit = match[2];
+    const ageInDays = unit === 'h'
+      ? value / 24
+      : unit === 'd'
+        ? value
+        : unit === 'w'
+          ? value * 7
+          : value * 30;
+
+    if (postedWindow === '24h') return ageInDays <= 1;
+    if (postedWindow === '7d') return ageInDays <= 7;
+    if (postedWindow === '30d') return ageInDays <= 30;
+    return true;
+  };
+  const filteredOpportunities = opportunities.filter((item) => {
+    const haystack = `${item.company} ${item.role} ${item.location} ${item.category} ${item.sourceName}`.toLowerCase();
+    const matchesSearch = !filters.search.trim() || haystack.includes(filters.search.trim().toLowerCase());
+    const matchesRoleType = filters.roleType === 'all' || item.roleType === filters.roleType;
+    const matchesSource = filters.source === 'all' || item.sourceId === filters.source;
+    const matchesPosted = matchesPostedWindow(item.age, filters.postedWindow);
+    return matchesSearch && matchesRoleType && matchesSource && matchesPosted;
+  });
+  const refreshedLabel = meta.updatedAt ? new Date(meta.updatedAt).toLocaleString() : 'Not refreshed yet';
+  const healthySources = sources.filter((source) => source.status !== 'error').length;
+
+  return (
+    <div className="hide-scrollbar" style={{padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 120px)', overflowY: 'auto', width: '100%', boxSizing: 'border-box'}}>
+      <div className="glass-panel opportunities-hero" style={{margin: 0}}>
+        <div className="opportunities-hero-top">
+          <div className="opportunities-hero-copy">
+            <h2 className="panel-title" style={{marginBottom: '0.5rem'}}>Opportunity Radar</h2>
+            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
+              Browse curated GitHub job boards, filter the best-fit roles quickly, and send one straight into the AI Generator without leaving the app.
+            </p>
+          </div>
+          <div className="action-row opportunities-hero-actions" style={{marginBottom: 0}}>
+            <div className="soft-pill success">{filteredOpportunities.length} roles</div>
+            <button className="secondary-button" onClick={() => loadOpportunities(true)} disabled={loading}>
+              {loading ? 'Refreshing...' : 'Refresh Sources'}
+            </button>
+          </div>
+        </div>
+
+        <div className="opportunities-toolbar">
+          <input
+            placeholder="Search company, role, location, category..."
+            value={filters.search}
+            onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+          />
+          <select
+            value={filters.roleType}
+            onChange={(e) => setFilters((prev) => ({ ...prev, roleType: e.target.value }))}
+          >
+            <option value="all">All role types</option>
+            <option value="internship">Internships</option>
+            <option value="new-grad">New grad</option>
+          </select>
+          <select
+            value={filters.source}
+            onChange={(e) => setFilters((prev) => ({ ...prev, source: e.target.value }))}
+          >
+            <option value="all">All sources</option>
+            {uniqueSources.map((source) => (
+              <option key={source.sourceId} value={source.sourceId}>{source.sourceName}</option>
+            ))}
+          </select>
+          <select
+            value={filters.postedWindow}
+            onChange={(e) => setFilters((prev) => ({ ...prev, postedWindow: e.target.value }))}
+          >
+            <option value="all">Any posted date</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last week</option>
+            <option value="30d">Last month</option>
+          </select>
+        </div>
+
+        <div className="opportunities-source-row">
+          <div className="surface-block opportunities-source-pill opportunities-status-pill">
+            <div style={{fontWeight: 700}}>Last refreshed</div>
+            <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
+              {refreshedLabel}
+            </div>
+          </div>
+          <div className="surface-block opportunities-source-pill opportunities-status-pill">
+            <div style={{fontWeight: 700}}>Source health</div>
+            <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
+              {healthySources}/{sources.length || 0} live
+            </div>
+          </div>
+          {uniqueSources.map((source) => (
+            <div key={source.sourceId} className="surface-block opportunities-source-pill">
+              <div style={{fontWeight: 700}}>{source.sourceName}</div>
+              <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
+                {source.count} listings
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {status && (
+          <div className={`status-banner ${status.toLowerCase().includes('failed') ? 'warning' : 'info'}`} style={{marginTop: '1rem'}}>
+            {status}
+          </div>
+        )}
+        {meta.stale && (
+          <div className="opportunities-meta-row">
+            {meta.stale && <div className="soft-pill">Stale fallback</div>}
+          </div>
+        )}
+      </div>
+
+      <div className="opportunities-grid">
+        {filteredOpportunities.map((item) => (
+          <div key={item.id} className="glass-panel opportunity-card" style={{margin: 0}}>
+            <div className="opportunity-card-header">
+              <div className="opportunity-card-title-wrap">
+                <h3 className="opportunity-card-title">{item.role}</h3>
+                <div style={{marginTop: '0.35rem', color: 'var(--text-primary)', fontWeight: 600}}>{item.company}</div>
+              </div>
+              <div className="soft-pill opportunity-age-pill">{item.age}</div>
+            </div>
+
+            <div className="generator-chip-wrap" style={{marginTop: '1rem'}}>
+              <span className="generator-chip">{item.location}</span>
+              <span className="generator-chip">{item.roleType === 'internship' ? 'Internship' : 'New Grad'}</span>
+              {item.category && <span className="generator-chip">{item.category}</span>}
+              <span className="generator-chip success">{item.sourceName}</span>
+            </div>
+
+            <div className="action-row opportunity-actions" style={{justifyContent: 'flex-start', marginTop: '1rem', marginBottom: 0}}>
+              {item.applyUrl && (
+                <a className="opportunity-apply-button" href={item.applyUrl} target="_blank" rel="noreferrer">
+                  Apply Now
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {!loading && filteredOpportunities.length === 0 && (
+          <div className="glass-panel" style={{margin: 0}}>
+            <h2 className="panel-title">No matches found</h2>
+            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
+              Try widening the search, turning off the remote-only filter, or refreshing the source feeds.
+            </p>
+          </div>
         )}
       </div>
     </div>

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "refresh-opportunities": "node ./scripts/refresh-opportunities.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

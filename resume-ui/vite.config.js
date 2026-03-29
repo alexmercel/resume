@@ -5,12 +5,16 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
 import os from 'os'
+import { ensureOpportunitiesCacheDir, getCachedOpportunitiesPayload, getOpportunitiesPayload } from './opportunities.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 let currentGenStatus = "Idle";
 const SETTINGS_PATH = path.resolve(__dirname, 'user-settings.json');
+const APPLICATIONS_PATH = path.resolve(__dirname, 'applications.json');
+const OPPORTUNITIES_CACHE_PATH = path.resolve(__dirname, 'opportunities-cache.json');
+ensureOpportunitiesCacheDir(OPPORTUNITIES_CACHE_PATH);
 const COMMON_FREE_TIER_MODELS = [
   'gemini-3.1-flash-lite-preview',
   'gemini-2.5-flash-lite',
@@ -50,6 +54,45 @@ function getGeminiConfig() {
 
 function getGeminiUrl(model, apiKey) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+}
+
+function readApplications() {
+  try {
+    if (!fs.existsSync(APPLICATIONS_PATH)) return [];
+    const parsed = JSON.parse(fs.readFileSync(APPLICATIONS_PATH, 'utf-8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeApplications(applications) {
+  fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(applications, null, 2), 'utf-8');
+  return applications;
+}
+
+function addGeneratedApplication({ company, role, filename, coverLetter }) {
+  const applications = readApplications();
+  const appliedOn = new Date().toISOString().slice(0, 10);
+  const existingIndex = applications.findIndex((item) => item.filename === filename);
+  const nextEntry = {
+    id: existingIndex >= 0 ? applications[existingIndex].id : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    company: company?.trim() || 'Untitled Company',
+    role: role?.trim() || 'Untitled Role',
+    appliedOn,
+    filename,
+    hasCoverLetter: !!coverLetter,
+    createdAt: existingIndex >= 0 ? applications[existingIndex].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (existingIndex >= 0) {
+    applications.splice(existingIndex, 1);
+  }
+
+  applications.unshift(nextEntry);
+  writeApplications(applications);
+  return applications;
 }
 
 function getDataDir() {
@@ -165,6 +208,43 @@ function calculateMatchedKeywords(jdKeywords, content) {
   return deduped.filter((keyword) => contentContainsKeyword(content, keyword));
 }
 
+function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
+  const text = (jd || '').trim();
+  const normalizedFallbackCompany = (fallbackCompany || '').replace(/_/g, ' ').trim();
+  const normalizedFallbackRole = (fallbackRole || '').replace(/_/g, ' ').trim();
+
+  const companyPatterns = [
+    /\bat\s+([A-Z][A-Za-z0-9&.,'\/\- ]{1,60})/i,
+    /\bjoin\s+([A-Z][A-Za-z0-9&.,'\/\- ]{1,60})/i,
+    /\bcompany:\s*([A-Z][A-Za-z0-9&.,'\/\- ]{1,60})/i
+  ];
+
+  const rolePatterns = [
+    /\b(?:seeking|hiring|looking for|looking to hire)\s+(?:an?\s+)?([A-Z][A-Za-z0-9\/,\-+ ]{3,80})/i,
+    /\bposition:\s*([A-Z][A-Za-z0-9\/,\-+ ]{3,80})/i,
+    /\brole:\s*([A-Z][A-Za-z0-9\/,\-+ ]{3,80})/i
+  ];
+
+  const cleanValue = (value) => (value || '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[.,:;\-\s]+$/g, '')
+    .trim();
+
+  const companyMatch = companyPatterns
+    .map((pattern) => text.match(pattern)?.[1])
+    .find(Boolean);
+
+  const roleMatch = rolePatterns
+    .map((pattern) => text.match(pattern)?.[1])
+    .find(Boolean);
+
+  return {
+    company: cleanValue(companyMatch) || normalizedFallbackCompany || 'Untitled Company',
+    role: cleanValue(roleMatch) || normalizedFallbackRole || 'Untitled Role'
+  };
+}
+
+
 const API_PLUGIN = () => ({
   name: 'api-plugin',
   configureServer(server) {
@@ -261,6 +341,97 @@ const API_PLUGIN = () => ({
 
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true, model, response: responseText || 'Received an empty response.' }));
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: e.message }));
+          }
+        });
+        return;
+      }
+
+      if (req.url === '/api/applications' && req.method === 'GET') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ applications: readApplications() }));
+        return;
+      }
+
+      if (req.url.startsWith('/api/opportunities') && req.method === 'GET') {
+        try {
+          const url = new URL(req.url, 'http://localhost');
+          const refresh = url.searchParams.get('refresh') === '1';
+          const cacheOnly = url.searchParams.get('cache_only') === '1';
+          const payload = cacheOnly
+            ? getCachedOpportunitiesPayload(OPPORTUNITIES_CACHE_PATH)
+            : await getOpportunitiesPayload({
+                forceRefresh: refresh,
+                cachePath: OPPORTUNITIES_CACHE_PATH
+              });
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            success: true,
+            updatedAt: payload.updatedAt,
+            fetchedAt: payload.fetchedAt,
+            fromCache: !!payload.fromCache,
+            stale: !!payload.stale,
+            opportunities: payload.opportunities || [],
+            sources: payload.sources || []
+          }));
+        } catch (error) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: error.message || 'Failed to load opportunities.' }));
+        }
+        return;
+      }
+
+      if (req.url === '/api/humanize-cover-letter' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk.toString());
+        req.on('end', async () => {
+          try {
+            const { apiKey, model } = getGeminiConfig();
+            if (!apiKey) throw new Error('No Gemini API key configured. Save one in the Profile tab first.');
+            const incoming = JSON.parse(body || '{}');
+            const coverLetter = incoming.coverLetter || '';
+            const jd = incoming.jd || '';
+            if (!coverLetter.trim()) throw new Error('No cover letter content to humanize.');
+
+            const humanizePrompt = `
+You are a professional job application writing editor.
+
+Your task is to humanize and improve the tone of the cover letter below while preserving truthfulness, role relevance, and all factual claims.
+
+RULES:
+1. Keep the letter professional, warm, and natural.
+2. Do NOT invent any experience, metrics, technologies, or company-specific facts.
+3. Do NOT make it generic or robotic.
+4. Keep it concise and realistic for an actual application.
+5. Keep the output near the original length.
+6. Return ONLY the revised raw cover letter text with no markdown code fences.
+
+=== TARGET JOB DESCRIPTION ===
+${jd}
+
+=== CURRENT COVER LETTER ===
+${coverLetter}
+`;
+
+            const geminiRes = await fetch(getGeminiUrl(model, apiKey), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: humanizePrompt }] }] })
+            });
+
+            if (!geminiRes.ok) {
+              const errorText = await geminiRes.text();
+              throw new Error(errorText || 'Humanization request failed');
+            }
+
+            const geminiData = await geminiRes.json();
+            let text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            text = text.replace(/^```text\n/i, '').replace(/^```\n/i, '').replace(/\n```$/g, '').trim();
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, coverLetter: text }));
           } catch (e) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: e.message }));
@@ -1065,11 +1236,24 @@ Draft a strict 300-400 word highly targeted Cover Letter explaining why this spe
 
                // Respond success regardless of pdflatex warning squiggles
                res.setHeader('Content-Type', 'application/json');
+               const applicationInfo = extractApplicationInfoFromJd(
+                 prompt,
+                 filename,
+                 template.replace(/\.tex$/i, '').replace(/_/g, ' ')
+               );
+               const applications = addGeneratedApplication({
+                 ...applicationInfo,
+                 filename: `${filename}.pdf`,
+                 coverLetter: coverLetterText
+               });
+
                res.end(JSON.stringify({ 
                   success: true, 
                   filename: `${filename}.pdf`, 
                   metrics: pass1Metrics, 
-                  coverLetter: coverLetterText 
+                  coverLetter: coverLetterText,
+                  applicationInfo,
+                  applications
                }));
                currentGenStatus = "Idle";
             });
