@@ -282,12 +282,18 @@ function PillInput({ skills, setSkills, label }) {
 // 0. PROFILE MANAGER
 // ============================================
 export function ProfileManager({ rawMarkdown, onSave, onDiscard }) {
-  const [profile, setProfile] = useState({ name: '', location: '', phone: '', email: '', linkedin: '' });
+  const [profile, setProfile] = useState({ name: '', location: '', phone: '', email: '', linkedin: '', github: '', portfolio: '' });
+
+  const normalizeProfileLink = (value) => (value || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/+$/g, '');
 
   useEffect(() => {
     if (!rawMarkdown) return;
     const lines = rawMarkdown.split('\n');
-    const parsed = { name: '', location: '', phone: '', email: '', linkedin: '' };
+    const parsed = { name: '', location: '', phone: '', email: '', linkedin: '', github: '', portfolio: '' };
     lines.forEach(l => {
       const match = l.match(/-\s*\*\*(.*?):\*\*\s*(.*)/);
       if (match) {
@@ -299,7 +305,7 @@ export function ProfileManager({ rawMarkdown, onSave, onDiscard }) {
   }, [rawMarkdown]);
 
   const getMarkdown = () => {
-    return `# Personal Profile\n\n- **Name:** ${profile.name}\n- **Location:** ${profile.location}\n- **Phone:** ${profile.phone}\n- **Email:** ${profile.email}\n- **LinkedIn:** ${profile.linkedin}\n`;
+    return `# Personal Profile\n\n- **Name:** ${profile.name}\n- **Location:** ${profile.location}\n- **Phone:** ${profile.phone}\n- **Email:** ${profile.email}\n- **LinkedIn:** ${normalizeProfileLink(profile.linkedin)}\n- **GitHub:** ${normalizeProfileLink(profile.github)}\n- **Portfolio:** ${normalizeProfileLink(profile.portfolio)}\n`;
   };
 
   const handleSave = () => {
@@ -323,6 +329,10 @@ export function ProfileManager({ rawMarkdown, onSave, onDiscard }) {
             <InputField label="Phone Number" value={profile.phone} onChange={v => updateProfile('phone', v)} placeholder="E.g. +1 123-456-7890" />
             <InputField label="Email Address" value={profile.email} onChange={v => updateProfile('email', v)} placeholder="E.g. john@example.com" />
             <InputField label="LinkedIn URL Node" value={profile.linkedin} onChange={v => updateProfile('linkedin', v)} placeholder="E.g. linkedin.com/in/johndoe" />
+         </div>
+         <div style={{ display: 'flex', gap: '1rem' }}>
+            <InputField label="GitHub URL" value={profile.github} onChange={v => updateProfile('github', v)} placeholder="E.g. github.com/johndoe" />
+            <InputField label="Portfolio URL" value={profile.portfolio} onChange={v => updateProfile('portfolio', v)} placeholder="E.g. johndoe.dev" />
          </div>
       </FormCard>
     </div>

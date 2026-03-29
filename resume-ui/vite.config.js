@@ -632,7 +632,9 @@ profile.md format:
 - **Location:** value
 - **Phone:** value
 - **Email:** value
-- **LinkedIn:** value
+- **LinkedIn:** value (store without https:// or www.)
+- **GitHub:** value (store without https:// or www.)
+- **Portfolio:** value (store without https:// or www.)
 
 projects.md format:
 # Projects
@@ -706,7 +708,7 @@ RULES:
             const parsed = JSON.parse(rawJson);
 
             const defaults = {
-              'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n',
+              'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
               'projects.md': '# Projects\n',
               'workex.md': '# Experience\n',
               'education.md': '# Education\n',

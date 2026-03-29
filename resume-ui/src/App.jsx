@@ -1170,6 +1170,8 @@ function TemplatesView({ type = 'wireframes' }) {
   const [status, setStatus] = useState('');
   const [activeSubTab, setActiveSubTab] = useState('editor'); // 'preview', 'editor'
   const [compileStatus, setCompileStatus] = useState('');
+  const [compileError, setCompileError] = useState('');
+  const [lastWorkingContent, setLastWorkingContent] = useState('');
   const [renderTimestamp, setRenderTimestamp] = useState(Date.now());
 
   const loadTemplates = () => {
@@ -1198,9 +1200,16 @@ function TemplatesView({ type = 'wireframes' }) {
        fetch(`/api/template/${type}/${activeFile}`)
          .then(res => res.json())
          .then(data => {
-            if (data.content !== undefined) setContent(data.content);
-            else setContent('Error loading file.');
+            if (data.content !== undefined) {
+              setContent(data.content);
+              setLastWorkingContent(data.content);
+            } else {
+              setContent('Error loading file.');
+              setLastWorkingContent('');
+            }
             setStatus('');
+            setCompileStatus('');
+            setCompileError('');
          })
          .catch(console.error);
     }
@@ -1231,6 +1240,7 @@ function TemplatesView({ type = 'wireframes' }) {
 
   const handleCompile = async () => {
     setCompileStatus('Compiling...');
+    setCompileError('');
     const saved = await handleSave();
     if (saved) {
        fetch(`/api/compile-template/${type}/${activeFile}`, { method: 'POST' })
@@ -1238,13 +1248,42 @@ function TemplatesView({ type = 'wireframes' }) {
          .then(compData => {
             if (compData.success) {
               setCompileStatus('Success!');
+              setCompileError('');
+              setLastWorkingContent(content);
               setTimeout(() => setCompileStatus(''), 2000);
               setRenderTimestamp(Date.now()); // refresh iframe
             } else {
               setCompileStatus('Error Compiling');
+              setCompileError(compData.error || 'Failed to compile template preview.');
             }
+         })
+         .catch((error) => {
+           setCompileStatus('Error Compiling');
+           setCompileError(error.message || 'Failed to compile template preview.');
          });
     }
+  };
+
+  const handleUndoCompileFailure = () => {
+    if (!activeFile || !lastWorkingContent) return;
+    setStatus('Restoring...');
+    setContent(lastWorkingContent);
+    fetch(`/api/template/${type}/${activeFile}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: lastWorkingContent })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (!data.success) throw new Error('Failed to restore template.');
+        setStatus('Restored last working version.');
+        setCompileStatus('');
+        setCompileError('');
+        setTimeout(() => setStatus(''), 2000);
+      })
+      .catch(() => {
+        setStatus('Restore failed');
+      });
   };
 
   const handleNewTemplate = () => {
@@ -1267,23 +1306,31 @@ function TemplatesView({ type = 'wireframes' }) {
 
   return (
     <div className="glass-panel" style={{height: 'calc(100vh - 120px)'}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-        <h2 className="panel-title" style={{margin: 0}}>
-           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Generic Ready Resumes'}
-        </h2>
-        <div style={{display: 'flex', gap: '0.5rem'}}>
+	      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+	        <h2 className="panel-title" style={{margin: 0}}>
+	           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Generic Ready Resumes'}
+	        </h2>
+	        <div style={{display: 'flex', gap: '0.5rem'}}>
           <button className="secondary-button" onClick={handleSave} style={{padding: '0.5rem 1rem'}}>
             {status || 'Save Template'}
           </button>
-          <button className="primary-button" onClick={handleCompile}>
-            {compileStatus || 'Save & Preview PDF'}
-          </button>
-        </div>
-      </div>
-      <p style={{color: 'var(--text-secondary)'}}>
-        {type === 'wireframes' 
-          ? 'Directly modify the structural `.tex` code for all AI generation wireframes.'
-          : 'Manage and tweak your complete generic ready-to-use resume distributions.'}
+	          <button className="primary-button" onClick={handleCompile}>
+	            {compileStatus || 'Save & Preview PDF'}
+	          </button>
+	        </div>
+	      </div>
+	      {compileError && (
+	        <div className="status-banner warning" style={{marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'}}>
+	          <span style={{flex: '1 1 320px'}}>{compileError}</span>
+	          <button className="secondary-button" onClick={handleUndoCompileFailure}>
+	            Undo to Last Working Version
+	          </button>
+	        </div>
+	      )}
+	      <p style={{color: 'var(--text-secondary)'}}>
+	        {type === 'wireframes' 
+	          ? 'Directly modify the structural `.tex` code for all AI generation wireframes.'
+	          : 'Manage and tweak your complete generic ready-to-use resume distributions.'}
       </p>
       <div style={{display: 'flex', gap: '1rem', height: '100%', minHeight: 0}}>
         {/* Left Sidebar */}
@@ -1351,6 +1398,8 @@ function HistoryView() {
   const [activeSubTab, setActiveSubTab] = useState('preview'); // 'preview', 'editor', 'jd', 'coverLetter'
   const [texContent, setTexContent] = useState('');
   const [compileStatus, setCompileStatus] = useState('');
+  const [compileError, setCompileError] = useState('');
+  const [lastWorkingTexContent, setLastWorkingTexContent] = useState('');
 
   // Fetch history list
   useEffect(() => {
@@ -1368,7 +1417,12 @@ function HistoryView() {
        fetch(`/api/tex/${activeItem.company}.tex`)
          .then(res => res.json())
          .then(data => {
-            if (data.content) setTexContent(data.content);
+            if (data.content) {
+              setTexContent(data.content);
+              setLastWorkingTexContent(data.content);
+            }
+            setCompileStatus('');
+            setCompileError('');
          })
          .catch(console.error);
     }
@@ -1376,6 +1430,7 @@ function HistoryView() {
 
   const handleCompile = () => {
     setCompileStatus('Compiling...');
+    setCompileError('');
     // 1. Save TeX
     fetch(`/api/tex/${activeItem.company}.tex`, {
       method: 'POST',
@@ -1389,15 +1444,41 @@ function HistoryView() {
             .then(compData => {
                if (compData.success) {
                  setCompileStatus('Success!');
+                 setCompileError('');
+                 setLastWorkingTexContent(texContent);
                  setTimeout(() => setCompileStatus(''), 2000);
                  // Force iframe refresh by toggling active item timestamp mapping
                  setActiveItem({...activeItem, timestamp: Date.now()});
                } else {
                  setCompileStatus('Error Compiling');
+                 setCompileError(compData.error || 'Failed to compile PDF.');
                }
+            })
+            .catch((error) => {
+              setCompileStatus('Error Compiling');
+              setCompileError(error.message || 'Failed to compile PDF.');
             });
        }
     });
+  };
+
+  const handleUndoCompileFailure = () => {
+    if (!activeItem || !lastWorkingTexContent) return;
+    setTexContent(lastWorkingTexContent);
+    fetch(`/api/tex/${activeItem.company}.tex`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: lastWorkingTexContent })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (!data.success) throw new Error('Failed to restore TeX file.');
+        setCompileStatus('');
+        setCompileError('');
+      })
+      .catch((error) => {
+        setCompileError(error.message || 'Failed to restore TeX file.');
+      });
   };
 
   return (
@@ -1445,11 +1526,19 @@ function HistoryView() {
              Select a resume from the archive to view or edit.
            </div>
         ) : (
-          <>
-            <div className="toolbar-tabs">
-               <button 
-                  className={`nav-item ${activeSubTab === 'preview' ? 'active' : ''}`}
-                  onClick={() => setActiveSubTab('preview')}
+	          <>
+	            {compileError && (
+	              <div className="status-banner warning" style={{margin: '0 0 1rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'}}>
+	                <span style={{flex: '1 1 320px'}}>{compileError}</span>
+	                <button className="secondary-button" onClick={handleUndoCompileFailure}>
+	                  Undo to Last Working Version
+	                </button>
+	              </div>
+	            )}
+	            <div className="toolbar-tabs">
+	               <button 
+	                  className={`nav-item ${activeSubTab === 'preview' ? 'active' : ''}`}
+	                  onClick={() => setActiveSubTab('preview')}
                >Preview PDF</button>
                <button 
                   className={`nav-item ${activeSubTab === 'editor' ? 'active' : ''}`}
