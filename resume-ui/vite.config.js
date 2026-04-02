@@ -265,6 +265,162 @@ LaTeX setup check for Resume Builder Studio.
   });
 }
 
+function extractLatexErrorSnippet(output) {
+  const text = String(output || '').trim();
+  if (!text) return 'No compiler output was captured.';
+  const errorLine = text.split('\n').find((line) => line.trim().startsWith('!'));
+  if (errorLine) return errorLine.trim();
+  return text.split('\n').slice(-12).join('\n').trim();
+}
+
+function detectLatexStructuralIssues(content) {
+  const text = String(content || '');
+  const issues = [];
+  const openBraces = (text.match(/\{/g) || []).length;
+  const closeBraces = (text.match(/\}/g) || []).length;
+  if (openBraces !== closeBraces) {
+    issues.push(`Brace count mismatch: ${openBraces} opening vs ${closeBraces} closing braces.`);
+  }
+
+  const begins = [...text.matchAll(/\\begin\{([^}]+)\}/g)].map((match) => match[1]);
+  const ends = [...text.matchAll(/\\end\{([^}]+)\}/g)].map((match) => match[1]);
+  const beginCounts = new Map();
+  const endCounts = new Map();
+  begins.forEach((name) => beginCounts.set(name, (beginCounts.get(name) || 0) + 1));
+  ends.forEach((name) => endCounts.set(name, (endCounts.get(name) || 0) + 1));
+  new Set([...beginCounts.keys(), ...endCounts.keys()]).forEach((name) => {
+    const beginCount = beginCounts.get(name) || 0;
+    const endCount = endCounts.get(name) || 0;
+    if (beginCount !== endCount) {
+      issues.push(`Environment mismatch for ${name}: \\begin count ${beginCount}, \\end count ${endCount}.`);
+    }
+  });
+
+  return issues;
+}
+
+function runPdflatexOnce(workingDir, fileName) {
+  return new Promise((resolve) => {
+    exec(`pdflatex -interaction=nonstopmode "${fileName}"`, { cwd: workingDir }, (error, stdout, stderr) => {
+      resolve({
+        success: !error,
+        output: `${stdout || ''}\n${stderr || ''}`.trim(),
+        error
+      });
+    });
+  });
+}
+
+async function attemptLatexRepair({ content, compilerOutput, apiKey, model }) {
+  if (!apiKey || !content.trim()) return null;
+  const repairPrompt = `
+You are a strict LaTeX syntax repair utility.
+Your task is to repair compile-breaking LaTeX issues in the document below while preserving the resume's content and layout intent.
+
+Rules:
+1. Fix only LaTeX syntax or structural issues.
+2. Do NOT invent experience, projects, or personal data.
+3. Do NOT change the candidate facts.
+4. Keep the same overall template structure.
+5. Return ONLY raw LaTeX. No markdown fences or explanation.
+
+Compiler output:
+${extractLatexErrorSnippet(compilerOutput)}
+
+Document to repair:
+${content}
+`;
+
+  const geminiRes = await fetch(getGeminiUrl(model, apiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: repairPrompt }] }] })
+  });
+
+  if (!geminiRes.ok) {
+    return null;
+  }
+
+  const geminiData = await geminiRes.json();
+  const repaired = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return repaired.replace(/^```latex\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim() || null;
+}
+
+async function compileLatexWithRetries({
+  basePath,
+  fileName,
+  content = null,
+  apiKey = '',
+  model = DEFAULT_SETTINGS.geminiModel,
+  maxAttempts = 3,
+  allowRepair = false,
+  statusPrefix = 'Compiling LaTeX'
+}) {
+  const workingDir = path.join(basePath, 'Tex_Files');
+  ensureDir(workingDir);
+
+  const normalizedFileName = fileName.endsWith('.tex') ? fileName : `${fileName}.tex`;
+  const baseName = normalizedFileName.replace(/\.tex$/i, '');
+  const texPath = path.join(workingDir, normalizedFileName);
+  const pdfPath = path.join(workingDir, `${baseName}.pdf`);
+
+  let currentContent = content === null ? fs.readFileSync(texPath, 'utf-8') : String(content);
+  fs.writeFileSync(texPath, currentContent, 'utf-8');
+
+  let lastOutput = '';
+  let repaired = false;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const structuralIssues = detectLatexStructuralIssues(currentContent);
+    if (attempt === 1 && structuralIssues.length) {
+      lastOutput = structuralIssues.join(' ');
+    }
+
+    currentGenStatus = `${statusPrefix} (attempt ${attempt}/${maxAttempts})...`;
+    const compileResult = await runPdflatexOnce(workingDir, normalizedFileName);
+    lastOutput = compileResult.output || lastOutput;
+
+    if (compileResult.success && fs.existsSync(pdfPath)) {
+      return {
+        success: true,
+        pdfPath,
+        texPath,
+        attempts: attempt,
+        repaired,
+        output: compileResult.output,
+        content: currentContent
+      };
+    }
+
+    const shouldRepair = allowRepair && apiKey && attempt < maxAttempts;
+    if (shouldRepair) {
+      currentGenStatus = `Repairing LaTeX syntax after compile failure (attempt ${attempt}/${maxAttempts})...`;
+      const repairedContent = await attemptLatexRepair({
+        content: currentContent,
+        compilerOutput: lastOutput,
+        apiKey,
+        model
+      });
+      if (repairedContent && repairedContent !== currentContent) {
+        currentContent = repairedContent;
+        fs.writeFileSync(texPath, currentContent, 'utf-8');
+        repaired = true;
+        continue;
+      }
+    }
+  }
+
+  return {
+    success: false,
+    pdfPath,
+    texPath,
+    attempts: maxAttempts,
+    repaired,
+    output: lastOutput,
+    content: currentContent
+  };
+}
+
 function normalizeKeyword(value) {
   return (value || '')
     .toLowerCase()
@@ -357,7 +513,6 @@ function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '
     role: cleanValue(roleMatch) || normalizedFallbackRole || 'Untitled Role'
   };
 }
-
 
 const API_PLUGIN = () => ({
   name: 'api-plugin',
@@ -960,7 +1115,6 @@ RULES:
         const fileName = decodeURIComponent(parts[1]);
         const folder = type === 'generic' ? 'Generic' : 'Wireframes';
         const basePath = path.resolve(__dirname, '..');
-        const exec = require('child_process').exec;
         ensureDir(path.join(basePath, 'Tex_Files'));
         
         const templatePath = path.join(basePath, `Templates/${folder}`, fileName);
@@ -975,18 +1129,25 @@ RULES:
         const previewTexPath = path.join(basePath, 'Tex_Files', previewName);
         fs.copyFileSync(templatePath, previewTexPath);
 
-        exec(`pdflatex -interaction=nonstopmode "${previewName}"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
-           const previewPdfPath = path.join(basePath, 'Tex_Files', `${previewName.replace('.tex', '')}.pdf`);
-           cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), previewName.replace('.tex', ''));
-           if (err || !fs.existsSync(previewPdfPath)) {
-             res.statusCode = 500;
-             res.setHeader('Content-Type', 'application/json');
-             res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile template preview.' }));
-             return;
-           }
-           res.setHeader('Content-Type', 'application/json');
-           res.end(JSON.stringify({ success: true }));
+        const { apiKey, model } = getGeminiConfig();
+        const compileResult = await compileLatexWithRetries({
+          basePath,
+          fileName: previewName,
+          apiKey,
+          model,
+          maxAttempts: 3,
+          allowRepair: true,
+          statusPrefix: 'Compiling template preview'
         });
+        cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), previewName.replace('.tex', ''));
+        if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }));
+          return;
+        }
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ success: true, attempts: compileResult.attempts, repaired: compileResult.repaired }));
         return;
       }
 
@@ -1017,30 +1178,33 @@ RULES:
       if (req.url.startsWith('/api/compile/') && req.method === 'POST') {
         const fileName = decodeURIComponent(req.url.split('/api/compile/')[1].split('?')[0]);
         const basePath = path.resolve(__dirname, '..');
-        const exec = require('child_process').exec;
         ensureDir(path.join(basePath, 'Tex_Files'));
         ensureDir(path.join(basePath, 'PDFs'));
-        
-        exec(`pdflatex -interaction=nonstopmode "${fileName}"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
-           const baseName = fileName.replace('.tex', '');
-           const genPdfPath = path.join(basePath, 'Tex_Files', `${baseName}.pdf`);
-           const finalPdfPath = path.join(basePath, 'PDFs', `${baseName}.pdf`);
-           
-           if (err || !fs.existsSync(genPdfPath)) {
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile PDF.' }));
-              return;
-           }
-
-           if (fs.existsSync(genPdfPath)) {
-              fs.renameSync(genPdfPath, finalPdfPath);
-           }
-           cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), baseName);
-           
-           res.setHeader('Content-Type', 'application/json');
-           res.end(JSON.stringify({ success: true }));
+        const { apiKey, model } = getGeminiConfig();
+        const compileResult = await compileLatexWithRetries({
+          basePath,
+          fileName,
+          apiKey,
+          model,
+          maxAttempts: 3,
+          allowRepair: true,
+          statusPrefix: 'Recompiling saved LaTeX'
         });
+        const baseName = fileName.replace('.tex', '');
+        const finalPdfPath = path.join(basePath, 'PDFs', `${baseName}.pdf`);
+
+        if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF.' }));
+          return;
+        }
+
+        fs.renameSync(compileResult.pdfPath, finalPdfPath);
+        cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), baseName);
+
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ success: true, attempts: compileResult.attempts, repaired: compileResult.repaired }));
         return;
       }
 
@@ -1278,10 +1442,10 @@ STRICT CONTENT LOCK: Do NOT rewrite, paraphrase, optimize, or invent any resume 
 ${templateText}
 `;
 
-            const coverLetterPrompt = `
-You are an expert personalized Cover Letter writer.
-You must use ONLY the JD and candidate data included below.
-You must IGNORE any prior resumes, PDFs, TeX files, previous candidates, generated history, or assumptions from earlier runs.
+	            const coverLetterPrompt = `
+	You are an expert personalized Cover Letter writer.
+	You must use ONLY the JD and candidate data included below.
+	You must IGNORE any prior resumes, PDFs, TeX files, previous candidates, generated history, or assumptions from earlier runs.
 
 === STRICT RULES ===
 ${clRuleText}
@@ -1289,15 +1453,37 @@ ${clRuleText}
 === TARGET JOB DESCRIPTION ===
 ${prompt}
 
-=== CANDIDATE PROFILE (Use this identity exactly to sign the letter) ===
-${dataProfile}
-
-=== CANDIDATE OPTIMIZED EXPERIENCE ===
-${optimizedExperience}
-
-=== INSTRUCTIONS ===
-Draft a strict 300-400 word highly targeted Cover Letter explaining why this specific candidate is the perfect fit. Do NOT use fake placeholders. Use today's date (${new Date().toLocaleDateString()}). Return ONLY the raw Cover Letter text, no conversational filler or markdown code blocks!
-`;
+	=== CANDIDATE PROFILE (Use this identity exactly to sign the letter) ===
+	${dataProfile}
+	
+	=== CANDIDATE EXPERIENCE DATA FROM MARKDOWN FILES ===
+	Projects:
+	${dataProj}
+	
+	Skills:
+	${dataSkills}
+	
+	Work Experience:
+	${dataWork}
+	
+	Education:
+	${dataEdu}
+	
+	=== READ-ONLY EXPERIENCE SNAPSHOT ===
+	${optimizedExperience}
+	
+	=== INSTRUCTIONS ===
+	Write a cover letter for the position of <position> in <company> using the JD above.
+	The cover letter must:
+	1. Begin with a powerful idea, insight, or value statement. Do NOT begin with "I am applying for", "I’m applying for", or similar phrasing.
+	2. Connect the candidate's specific experience directly to the company's exact needs from the JD.
+	3. Build trust by referencing concrete evidence from the candidate's markdown experience data only.
+	4. Stay below 200 words total.
+	5. Sound sharp, credible, and tailored rather than generic.
+	6. Do NOT invent experience, companies, metrics, or technologies not present in the data files above.
+	7. Use today's date (${new Date().toLocaleDateString()}).
+	8. Return ONLY the raw cover letter text, with no markdown fences, labels, or explanation.
+	`;
 
             // 4. Call Gemini API (Pass 2 & Pass 2B Parallel Threads)
             currentGenStatus = "Compiling valid LaTeX structures while actively drafting human-like Cover Letter natively in absolute parallel threads...";
@@ -1353,58 +1539,68 @@ Draft a strict 300-400 word highly targeted Cover Letter explaining why this spe
             }
 
             // 6. Compilation
-            const exec = require('child_process').exec;
-            
             currentGenStatus = "Compiling generated LaTeX syntax to PDF locally...";
             const texPath = path.join(basePath, 'Tex_Files', `${filename}.tex`);
             fs.writeFileSync(texPath, aiText, 'utf-8');
 
-            exec(`pdflatex -interaction=nonstopmode "${filename}.tex"`, { cwd: path.join(basePath, 'Tex_Files') }, (err, stdout, stderr) => {
-               // File system cleanup
-               const genPdfPath = path.join(basePath, 'Tex_Files', `${filename}.pdf`);
-               const finalPdfPath = path.join(basePath, 'PDFs', `${filename}.pdf`);
-               
-               if (err || !fs.existsSync(genPdfPath)) {
-                  cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
-                  currentGenStatus = "Idle";
-                  res.statusCode = 500;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ success: false, error: stderr || stdout || 'Failed to compile PDF. Ensure pdflatex is installed on this machine.' }));
-                  return;
-               }
-
-               fs.renameSync(genPdfPath, finalPdfPath);
-
-               // Cover Letter Saving
-               const clDir = path.join(basePath, 'Cover_Letters');
-               ensureDir(clDir);
-               const clTextFile = path.join(clDir, `${filename}_Cover_Letter.txt`);
-               fs.writeFileSync(clTextFile, coverLetterText, 'utf-8');
-               cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
-
-               // Respond success regardless of pdflatex warning squiggles
-               res.setHeader('Content-Type', 'application/json');
-               const applicationInfo = extractApplicationInfoFromJd(
-                 prompt,
-                 filename,
-                 template.replace(/\.tex$/i, '').replace(/_/g, ' ')
-               );
-               const applications = addGeneratedApplication({
-                 ...applicationInfo,
-                 filename: `${filename}.pdf`,
-                 coverLetter: coverLetterText
-               });
-
-               res.end(JSON.stringify({ 
-                  success: true, 
-                  filename: `${filename}.pdf`, 
-                  metrics: pass1Metrics, 
-                  coverLetter: coverLetterText,
-                  applicationInfo,
-                  applications
-               }));
-               currentGenStatus = "Idle";
+            const compileResult = await compileLatexWithRetries({
+              basePath,
+              fileName: `${filename}.tex`,
+              content: aiText,
+              apiKey,
+              model,
+              maxAttempts: 3,
+              allowRepair: true,
+              statusPrefix: 'Compiling generated LaTeX syntax to PDF locally'
             });
+            const finalPdfPath = path.join(basePath, 'PDFs', `${filename}.pdf`);
+
+            if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+              cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
+              currentGenStatus = "Idle";
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                success: false,
+                error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF. Ensure pdflatex is installed on this machine.'
+              }));
+              return;
+            }
+
+            fs.renameSync(compileResult.pdfPath, finalPdfPath);
+
+            // Cover Letter Saving
+            const clDir = path.join(basePath, 'Cover_Letters');
+            ensureDir(clDir);
+            const clTextFile = path.join(clDir, `${filename}_Cover_Letter.txt`);
+            fs.writeFileSync(clTextFile, coverLetterText, 'utf-8');
+            cleanupLatexArtifacts(path.join(basePath, 'Tex_Files'), filename);
+
+            // Respond success regardless of pdflatex warning squiggles
+            res.setHeader('Content-Type', 'application/json');
+            const applicationInfo = extractApplicationInfoFromJd(
+              prompt,
+              filename,
+              template.replace(/\.tex$/i, '').replace(/_/g, ' ')
+            );
+            const applications = addGeneratedApplication({
+              ...applicationInfo,
+              filename: `${filename}.pdf`,
+              coverLetter: coverLetterText
+            });
+
+            res.end(JSON.stringify({ 
+              success: true, 
+              filename: `${filename}.pdf`, 
+              metrics: pass1Metrics, 
+              coverLetter: coverLetterText,
+              applicationInfo,
+              applications,
+              compileMeta: {
+                attempts: compileResult.attempts,
+                repaired: compileResult.repaired
+              }
+            }));
             currentGenStatus = "Idle";
 
           } catch (e) {
