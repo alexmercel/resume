@@ -478,6 +478,7 @@ function GeneratorView({ state, setState }) {
   const [pdflatexStatus, setPdflatexStatus] = useState({ installed: true, version: '' });
   const [isHumanizing, setIsHumanizing] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
+  const [jdActionStatus, setJdActionStatus] = useState('');
   const resultsRef = React.useRef(null);
   const updateGeneratorState = (patch) => {
     setState((prev) => ({ ...prev, ...patch }));
@@ -524,8 +525,8 @@ function GeneratorView({ state, setState }) {
       });
   }, []);
 
-  const handleGenerate = () => {
-    if (!jd.trim()) { updateGeneratorState({ output: 'Please paste a Job Description first!' }); return; }
+  const triggerGenerate = (nextJd = jd) => {
+    if (!nextJd.trim()) { updateGeneratorState({ output: 'Please paste a Job Description first!' }); return; }
     updateGeneratorState({
       isGenerating: true,
       output: 'Triggering Gemini API Integration...',
@@ -547,7 +548,7 @@ function GeneratorView({ state, setState }) {
     fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: jd, template })
+      body: JSON.stringify({ prompt: nextJd, template })
     })
     .then(res => res.json())
     .then(data => {
@@ -573,6 +574,10 @@ function GeneratorView({ state, setState }) {
         output: 'Failed to connect to local API.'
       });
     });
+  };
+
+  const handleGenerate = () => {
+    triggerGenerate(jd);
   };
 
   const handleHumanizeCoverLetter = () => {
@@ -604,6 +609,40 @@ function GeneratorView({ state, setState }) {
       setCopyStatus('Copy failed');
       setTimeout(() => setCopyStatus(''), 1800);
     }
+  };
+
+  const handlePasteJd = async () => {
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText.trim()) {
+        setJdActionStatus('Clipboard is empty');
+        setTimeout(() => setJdActionStatus(''), 1800);
+        return;
+      }
+      updateGeneratorState({
+        jd: '',
+        output: null,
+        metrics: null,
+        coverLetter: '',
+        pdfs: [],
+        pdfOpen: false,
+        clOpen: false,
+        hasGeneratedResume: false
+      });
+      updateGeneratorState({ jd: clipboardText });
+      setJdActionStatus('Pasted and generating...');
+      setTimeout(() => setJdActionStatus(''), 1800);
+      triggerGenerate(clipboardText);
+    } catch {
+      setJdActionStatus('Paste failed');
+      setTimeout(() => setJdActionStatus(''), 1800);
+    }
+  };
+
+  const handleClearJd = () => {
+    updateGeneratorState({ jd: '' });
+    setJdActionStatus('Cleared');
+    setTimeout(() => setJdActionStatus(''), 1400);
   };
 
   const hasResults = hasGeneratedResume && (pdfs.length > 0 || !!coverLetter || !!metrics);
@@ -693,6 +732,19 @@ function GeneratorView({ state, setState }) {
           <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0}}>
             Paste the role details below, choose a base template, and generate a tailored resume package. This section stays spacious until a fresh resume is created.
           </p>
+          <div className="jd-toolbar">
+            <div style={{color: 'var(--text-secondary)', fontSize: '0.8rem'}}>
+              {jdActionStatus || `${jd.trim() ? `${jd.trim().split(/\s+/).length} words loaded` : 'No job description loaded'}`}
+            </div>
+            <div className="jd-toolbar-actions">
+              <button className="secondary-button" type="button" onClick={handlePasteJd} style={{padding: '0.45rem 0.8rem', fontSize: '0.85rem'}}>
+                Paste & Generate
+              </button>
+              <button className="secondary-button" type="button" onClick={handleClearJd} disabled={!jd.trim()} style={{padding: '0.45rem 0.75rem', fontSize: '0.85rem', minWidth: '42px', opacity: jd.trim() ? 1 : 0.55}}>
+                ×
+              </button>
+            </div>
+          </div>
           <textarea
             placeholder="e.g. Seeking a Backend Software Engineer with experience in Python, AWS, and Distributed Systems..."
             style={{minHeight: hasResults ? '220px' : '320px', flex: hasResults ? '0 0 auto' : 1}}
@@ -1539,7 +1591,7 @@ function HistoryView() {
 	               <button 
 	                  className={`nav-item ${activeSubTab === 'preview' ? 'active' : ''}`}
 	                  onClick={() => setActiveSubTab('preview')}
-               >Preview PDF</button>
+	               >Preview PDF</button>
                <button 
                   className={`nav-item ${activeSubTab === 'editor' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('editor')}
@@ -1548,11 +1600,16 @@ function HistoryView() {
                   className={`nav-item ${activeSubTab === 'jd' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('jd')}
                >Original Job Description</button>
-               <button 
-                  className={`nav-item ${activeSubTab === 'coverLetter' ? 'active' : ''}`}
-                  onClick={() => setActiveSubTab('coverLetter')}
-               >Cover Letter</button>
-            </div>
+	               <button 
+	                  className={`nav-item ${activeSubTab === 'coverLetter' ? 'active' : ''}`}
+	                  onClick={() => setActiveSubTab('coverLetter')}
+	               >Cover Letter</button>
+	               {activeSubTab === 'editor' && (
+	                 <button className="primary-button history-toolbar-action" onClick={handleCompile}>
+	                   {compileStatus || 'Save & Re-Render PDF'}
+	                 </button>
+	               )}
+	            </div>
             
             <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
                {activeSubTab === 'preview' && (
@@ -1599,24 +1656,21 @@ function HistoryView() {
                    </div>
                  )
                )}
-               {activeSubTab === 'editor' && (
-                 <div style={{display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden'}}>
-                   <div className="editor-shell" style={{flex: 1, marginBottom: '1rem'}}>
-                     <Editor
-                       height="100%"
-                       language="latex"
-                       theme="vs-dark"
+	               {activeSubTab === 'editor' && (
+	                 <div className="history-editor-pane">
+	                   <div className="editor-shell" style={{flex: 1, minHeight: 0}}>
+	                     <Editor
+	                       height="100%"
+	                       language="latex"
+	                       theme="vs-dark"
                        value={texContent}
                        onChange={(val) => setTexContent(val || '')}
                        options={{ minimap: { enabled: false }, fontSize: 13, wordWrap: 'on' }}
-                       beforeMount={setupMonaco}
-                     />
-                   </div>
-                   <button className="primary-button" onClick={handleCompile} style={{alignSelf: 'flex-end'}}>
-                     {compileStatus || 'Save & Re-Render PDF'}
-                   </button>
-                 </div>
-               )}
+	                       beforeMount={setupMonaco}
+	                     />
+	                   </div>
+	                 </div>
+	               )}
             </div>
           </>
         )}
@@ -1628,7 +1682,17 @@ function HistoryView() {
 function ApplicationsView() {
   const [applications, setApplications] = useState([]);
   const [hoveredDay, setHoveredDay] = useState(null);
+  const [activeDayDetails, setActiveDayDetails] = useState(null);
   const [dailyGoal, setDailyGoal] = useState(5);
+
+  const getCompanyLabelFromFilename = (item) => {
+    const filename = String(item?.filename || '').replace(/\.pdf$/i, '').trim();
+    if (!filename) return item?.company || 'Untitled Company';
+    return filename
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
   useEffect(() => {
     fetch('/api/applications')
@@ -1646,15 +1710,23 @@ function ApplicationsView() {
   }, []);
 
   const today = new Date();
+  const applicationsByDay = applications.reduce((acc, item) => {
+    const key = item.appliedOn;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
   const dailySeries = Array.from({ length: 7 }, (_, idx) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (6 - idx));
     const key = date.toISOString().slice(0, 10);
-    const count = applications.filter((item) => item.appliedOn === key).length;
+    const dayApplications = applicationsByDay[key] || [];
     return {
       key,
       label: date.toLocaleDateString(undefined, { weekday: 'short' }),
-      count
+      fullDate: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+      count: dayApplications.length,
+      applications: dayApplications
     };
   });
 
@@ -1669,6 +1741,7 @@ function ApplicationsView() {
   const chartMax = Math.max(dailyGoal, ...dailySeries.map((day) => day.count));
 
   return (
+    <>
     <div className="hide-scrollbar" style={{padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 120px)', overflowY: 'auto', width: '100%', boxSizing: 'border-box'}}>
       <div className="glass-panel" style={{margin: 0, padding: '0.95rem 1.1rem', flex: '0 0 auto'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start'}}>
@@ -1717,6 +1790,8 @@ function ApplicationsView() {
                 onMouseEnter={() => setHoveredDay(day)}
                 onFocus={() => setHoveredDay(day)}
                 onMouseLeave={() => setHoveredDay(null)}
+                onBlur={() => setHoveredDay(null)}
+                onClick={() => setActiveDayDetails(day)}
               >
                 <span className="applications-bar-count">{day.count}</span>
                 <span className="applications-bar-label">{day.label}</span>
@@ -1726,6 +1801,37 @@ function ApplicationsView() {
         </div>
       </div>
     </div>
+    {activeDayDetails && (
+      <div className="onboarding-overlay" onClick={() => setActiveDayDetails(null)}>
+        <div
+          className="modal-shell applications-day-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem'}}>
+            <div>
+              <h3 style={{margin: 0}}>Applications for {activeDayDetails.fullDate}</h3>
+              <div style={{color: 'var(--text-secondary)', marginTop: '0.35rem'}}>
+                {activeDayDetails.count} generated {activeDayDetails.count === 1 ? 'resume' : 'resumes'}
+              </div>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => setActiveDayDetails(null)}>Close</button>
+          </div>
+          <div className="applications-day-list">
+            {activeDayDetails.applications.length ? activeDayDetails.applications.map((item) => (
+              <div key={item.id || `${item.company}-${item.filename}`} className="surface-block" style={{padding: '1rem'}}>
+                <div style={{fontWeight: 700}}>{getCompanyLabelFromFilename(item)}</div>
+                <div style={{color: 'var(--text-secondary)', marginTop: '0.55rem', fontSize: '0.86rem'}}>
+                  {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : item.appliedOn}
+                </div>
+              </div>
+            )) : (
+              <div style={{color: 'var(--text-secondary)'}}>No generated resumes were logged for this day.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
