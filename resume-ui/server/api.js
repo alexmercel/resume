@@ -2,9 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
+import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
+import { del as deleteBlob, get as getBlob, put as putBlob } from '@vercel/blob';
 import { createClient } from '@supabase/supabase-js';
 import { loadAppEnv } from './env.js';
 import {
@@ -42,6 +44,71 @@ function normalizeDailyGoal(value) {
   const parsed = Number.parseInt(String(value ?? '').trim(), 10);
   if (!Number.isFinite(parsed)) return 5;
   return Math.min(25, Math.max(1, parsed));
+}
+
+function parseRequestUrl(req) {
+  return new URL(req.url || '/', 'http://localhost');
+}
+
+function getQueryAccessToken(req) {
+  if (String(req.method || 'GET').toUpperCase() !== 'GET') return '';
+  try {
+    return parseRequestUrl(req).searchParams.get('access_token') || '';
+  } catch {
+    return '';
+  }
+}
+
+function isBlobStorageEnabled(env) {
+  return Boolean(String(env.BLOB_READ_WRITE_TOKEN || '').trim());
+}
+
+function shouldUseBlobArtifacts(env) {
+  const explicitStorageMode = String(env.PDF_STORAGE_MODE || '').trim().toLowerCase();
+  return isBlobStorageEnabled(env) && (explicitStorageMode === 'blob' || isRemoteLatexCompilerEnabled(env));
+}
+
+function isRemoteLatexCompilerEnabled(env) {
+  const explicitMode = String(env.LATEX_COMPILER_MODE || '').trim().toLowerCase();
+  if (explicitMode === 'remote') return isBlobStorageEnabled(env);
+  if (explicitMode === 'inline') return false;
+  return Boolean(env.VERCEL) && isBlobStorageEnabled(env);
+}
+
+function getRemoteLatexConfig(env) {
+  return {
+    baseUrl: String(env.LATEX_REMOTE_BASE_URL || 'https://latexonline.cc').trim().replace(/\/+$/, ''),
+    command: String(env.LATEX_REMOTE_COMMAND || 'pdflatex').trim() || 'pdflatex'
+  };
+}
+
+function buildPdfBlobPath(userId, fileName) {
+  return `users/${userId}/pdfs/${path.basename(fileName)}`;
+}
+
+function buildPreviewBlobPath(userId, type, fileName) {
+  return `users/${userId}/previews/${String(type || 'wireframe').trim()}/${path.basename(fileName)}`;
+}
+
+function buildTempTexBlobPath(userId, fileName) {
+  const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const token = crypto.randomBytes(6).toString('hex');
+  return `users/${userId || 'anonymous'}/temp/${Date.now()}-${token}-${safeName}`;
+}
+
+function streamWebToNode(stream, res) {
+  if (!stream) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return;
+  }
+  Readable.fromWeb(stream).pipe(res);
+}
+
+function extractMissingGenerationHistoryColumn(error, activeColumns = []) {
+  const message = String(error?.message || '');
+  const optionalColumns = ['cover_letter_content', 'tex_content', 'pdf_blob_path', 'pdf_blob_url'];
+  return [...activeColumns, ...optionalColumns].find((column) => message.includes(column)) || '';
 }
 
 export function getPaths(basePath, userId = null) {
@@ -162,6 +229,7 @@ export function isSupabaseEnabled(env) {
 }
 
 export function getLatexExecutionMode(env) {
+  if (isRemoteLatexCompilerEnabled(env)) return 'remote';
   return String(env.LATEX_QUEUE_MODE || '').trim().toLowerCase() === 'worker' && isSupabaseEnabled(env)
     ? 'worker'
     : 'inline';
@@ -175,10 +243,12 @@ function getPublicAppConfig(basePath) {
   return {
     success: true,
     authEnabled: supabaseEnabled,
-    storageMode: supabaseEnabled ? 'database+scoped-files' : 'legacy-files',
+    storageMode: supabaseEnabled
+      ? (shouldUseBlobArtifacts(env) ? 'database+blob' : 'database+scoped-files')
+      : 'legacy-files',
     latex: {
       mode: latexMode,
-      requiresLocalPdflatex: latexMode !== 'worker'
+      requiresLocalPdflatex: latexMode === 'inline'
     },
     supabase: supabaseEnabled
       ? {
@@ -222,7 +292,8 @@ async function getUserFromRequest(req, env) {
 
   const authHeader = req.headers.authorization || '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!tokenMatch) {
+  const accessToken = tokenMatch?.[1] || getQueryAccessToken(req);
+  if (!accessToken) {
     return { user: null, userId: null, authEnabled: true };
   }
 
@@ -231,7 +302,7 @@ async function getUserFromRequest(req, env) {
     return { user: null, userId: null, authEnabled: true };
   }
 
-  const { data, error } = await clients.auth.auth.getUser(tokenMatch[1]);
+  const { data, error } = await clients.auth.auth.getUser(accessToken);
   if (error || !data?.user) {
     return { user: null, userId: null, authEnabled: true };
   }
@@ -766,28 +837,206 @@ function scanHistoryFromFiles(paths) {
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
+async function selectGenerationHistoryRows(env, userId, columns, buildQuery) {
+  const { admin } = await getDbClientsOrThrow(env);
+  let activeColumns = [...columns];
+
+  while (activeColumns.length) {
+    let query = admin
+      .from('generation_history')
+      .select(activeColumns.join(', '))
+      .eq('user_id', userId);
+
+    if (typeof buildQuery === 'function') {
+      query = buildQuery(query);
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return {
+        data,
+        availableColumns: new Set(activeColumns)
+      };
+    }
+
+    const missingColumn = extractMissingGenerationHistoryColumn(error, activeColumns);
+    if (!missingColumn) {
+      throw new Error(error.message || 'Failed to load generation history.');
+    }
+    activeColumns = activeColumns.filter((column) => column !== missingColumn);
+  }
+
+  return {
+    data: [],
+    availableColumns: new Set()
+  };
+}
+
+async function upsertGenerationHistoryFields(env, payload) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const workingPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
+
+  while (true) {
+    const { error } = await admin.from('generation_history').upsert(workingPayload, {
+      onConflict: 'user_id,artifact_base_name'
+    });
+    if (!error) return workingPayload;
+
+    const missingColumn = extractMissingGenerationHistoryColumn(error, Object.keys(workingPayload));
+    if (!missingColumn) {
+      throw new Error(error.message || 'Failed to record generation history.');
+    }
+    delete workingPayload[missingColumn];
+  }
+}
+
+async function getStoredTexContent(paths, env, userId, fileName) {
+  const normalizedFileName = String(fileName || '').trim();
+  const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
+
+  if (userId && isSupabaseEnabled(env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      env,
+      userId,
+      ['artifact_base_name', 'tex_content'],
+      (query) => query.eq('artifact_base_name', artifactBaseName).maybeSingle()
+    );
+    if (availableColumns.has('tex_content') && data?.tex_content != null) {
+      return data.tex_content;
+    }
+  }
+
+  const filePath = resolveSafePath(paths.texDir, normalizedFileName);
+  if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
+
+  const legacyPath = path.join(paths.legacyTexDir, normalizedFileName);
+  if (legacyPath !== filePath && fs.existsSync(legacyPath)) return fs.readFileSync(legacyPath, 'utf-8');
+  return '';
+}
+
+async function saveStoredTexContent(paths, env, userId, fileName, content) {
+  const normalizedFileName = String(fileName || '').trim();
+  const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
+
+  if (userId && isSupabaseEnabled(env)) {
+    await upsertGenerationHistoryFields(env, {
+      user_id: userId,
+      artifact_base_name: artifactBaseName,
+      tex_content: String(content || ''),
+      updated_at: new Date().toISOString()
+    });
+    if (isRemoteLatexCompilerEnabled(env)) {
+      return;
+    }
+  }
+
+  ensureDir(paths.texDir);
+  fs.writeFileSync(path.join(paths.texDir, normalizedFileName), content, 'utf-8');
+}
+
+async function savePdfArtifact(paths, env, userId, fileName, pdfBuffer, options = {}) {
+  const normalizedFileName = path.basename(String(fileName || '').trim());
+  const targetBuffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+  if (userId && shouldUseBlobArtifacts(env)) {
+    const blobPath = options.preview
+      ? buildPreviewBlobPath(userId, options.previewType, normalizedFileName)
+      : buildPdfBlobPath(userId, normalizedFileName);
+    const blob = await putBlob(blobPath, targetBuffer, {
+      access: 'private',
+      allowOverwrite: true,
+      addRandomSuffix: false,
+      contentType: 'application/pdf'
+    });
+
+    if (!options.preview && isSupabaseEnabled(env)) {
+      await upsertGenerationHistoryFields(env, {
+        user_id: userId,
+        artifact_base_name: normalizedFileName.replace(/\.pdf$/i, ''),
+        pdf_blob_path: blob.pathname,
+        pdf_blob_url: blob.url,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    return {
+      mode: 'blob',
+      pathname: blob.pathname,
+      url: blob.url
+    };
+  }
+
+  ensureDir(paths.pdfDir);
+  const pdfPath = path.join(paths.pdfDir, normalizedFileName);
+  fs.writeFileSync(pdfPath, targetBuffer);
+  return {
+    mode: 'filesystem',
+    filePath: pdfPath
+  };
+}
+
+async function streamPdfArtifactToResponse(paths, env, userId, fileName, res) {
+  const normalizedFileName = path.basename(String(fileName || '').trim());
+
+  if (userId && shouldUseBlobArtifacts(env) && isSupabaseEnabled(env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      env,
+      userId,
+      ['artifact_base_name', 'pdf_blob_path', 'pdf_blob_url'],
+      (query) => query.eq('artifact_base_name', normalizedFileName.replace(/\.pdf$/i, '')).maybeSingle()
+    );
+    const blobPath = availableColumns.has('pdf_blob_path')
+      ? (data?.pdf_blob_path || data?.pdf_blob_url || '')
+      : '';
+    if (blobPath) {
+      const blobResult = await getBlob(blobPath, { access: 'private' });
+      if (!blobResult?.stream) {
+        res.statusCode = 404;
+        res.end('Not found');
+        return false;
+      }
+      res.setHeader('Content-Type', blobResult.blob.contentType || 'application/pdf');
+      res.setHeader('Content-Length', String(blobResult.blob.size || 0));
+      streamWebToNode(blobResult.stream, res);
+      return true;
+    }
+  }
+
+  const filePath = resolveSafePath(paths.pdfDir, normalizedFileName);
+  if (!fs.existsSync(filePath)) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return false;
+  }
+  const stat = fs.statSync(filePath);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Length', stat.size);
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
+
 async function readUserHistory(paths, env, userId) {
   if (!userId || !isSupabaseEnabled(env)) {
     return scanHistoryFromFiles(paths);
   }
 
-  const { admin } = await getDbClientsOrThrow(env);
-  let historyQuery = admin
-    .from('generation_history')
-    .select('artifact_base_name, template_name, jd, cover_letter_file, cover_letter_content, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  let { data, error } = await historyQuery;
-  let hasCoverLetterContentColumn = true;
-  if (isMissingColumnError(error, 'cover_letter_content')) {
-    hasCoverLetterContentColumn = false;
-    ({ data, error } = await admin
-      .from('generation_history')
-      .select('artifact_base_name, template_name, jd, cover_letter_file, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false }));
-  }
-  if (error) throw new Error(error.message || 'Failed to load history.');
+  const { data, availableColumns } = await selectGenerationHistoryRows(
+    env,
+    userId,
+    [
+      'artifact_base_name',
+      'template_name',
+      'jd',
+      'cover_letter_file',
+      'cover_letter_content',
+      'pdf_blob_path',
+      'pdf_blob_url',
+      'created_at',
+      'updated_at'
+    ],
+    (query) => query.order('created_at', { ascending: false })
+  );
 
   if (!data?.length) {
     return scanHistoryFromFiles(paths);
@@ -797,7 +1046,7 @@ async function readUserHistory(paths, env, userId) {
     const coverLetterPath = row.cover_letter_file
       ? path.join(paths.coverLettersDir, row.cover_letter_file)
       : null;
-    const coverLetterContent = hasCoverLetterContentColumn && row.cover_letter_content != null
+    const coverLetterContent = availableColumns.has('cover_letter_content') && row.cover_letter_content != null
       ? row.cover_letter_content
       : (
           coverLetterPath && fs.existsSync(coverLetterPath)
@@ -818,34 +1067,20 @@ async function readUserHistory(paths, env, userId) {
 
 async function recordGenerationHistory(paths, env, userId, payload) {
   if (!userId || !isSupabaseEnabled(env)) return;
-  const { admin } = await getDbClientsOrThrow(env);
   const timestamp = payload.createdAt || new Date().toISOString();
-  let { error } = await admin.from('generation_history').upsert({
+  await upsertGenerationHistoryFields(env, {
     user_id: userId,
     artifact_base_name: payload.artifactBaseName,
     template_name: payload.templateName,
     jd: payload.jd || '',
     cover_letter_file: payload.coverLetterFile || '',
     cover_letter_content: payload.coverLetterContent || '',
+    tex_content: payload.texContent,
+    pdf_blob_path: payload.pdfBlobPath,
+    pdf_blob_url: payload.pdfBlobUrl,
     created_at: timestamp,
     updated_at: timestamp
-  }, {
-    onConflict: 'user_id,artifact_base_name'
   });
-  if (isMissingColumnError(error, 'cover_letter_content')) {
-    ({ error } = await admin.from('generation_history').upsert({
-      user_id: userId,
-      artifact_base_name: payload.artifactBaseName,
-      template_name: payload.templateName,
-      jd: payload.jd || '',
-      cover_letter_file: payload.coverLetterFile || '',
-      created_at: timestamp,
-      updated_at: timestamp
-    }, {
-      onConflict: 'user_id,artifact_base_name'
-    }));
-  }
-  if (error) throw new Error(error.message || 'Failed to record generation history.');
 }
 
 async function enqueueGenerationJob(paths, env, userId, payload) {
@@ -1234,6 +1469,120 @@ export async function compileLatexWithRetries({
     repaired,
     output: lastOutput,
     content: currentContent
+  };
+}
+
+async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
+  const remoteConfig = getRemoteLatexConfig(env);
+  const tempBlobPath = buildTempTexBlobPath(userId, fileName);
+  const tempBlob = await putBlob(tempBlobPath, String(content || ''), {
+    access: 'public',
+    allowOverwrite: true,
+    addRandomSuffix: false,
+    contentType: 'application/x-tex; charset=utf-8'
+  });
+
+  try {
+    const compileUrl = new URL('/compile', `${remoteConfig.baseUrl}/`);
+    compileUrl.searchParams.set('url', tempBlob.url);
+    compileUrl.searchParams.set('download', path.basename(fileName).replace(/\.tex$/i, '.pdf'));
+    if (remoteConfig.command) {
+      compileUrl.searchParams.set('command', remoteConfig.command);
+    }
+
+    const response = await fetch(compileUrl, {
+      redirect: 'follow',
+      headers: {
+        Accept: 'application/pdf, text/plain;q=0.9, */*;q=0.8'
+      }
+    });
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    if (!response.ok || !contentType.includes('pdf')) {
+      const output = await response.text().catch(() => '');
+      return {
+        success: false,
+        output: output || `Remote compiler failed with status ${response.status}.`
+      };
+    }
+
+    return {
+      success: true,
+      output: `Compiled remotely via ${new URL(remoteConfig.baseUrl).host}.`,
+      pdfBuffer: Buffer.from(await response.arrayBuffer())
+    };
+  } finally {
+    await deleteBlob(tempBlob.pathname).catch(() => {});
+  }
+}
+
+async function compileLatexRemotelyWithRetries({
+  env,
+  userId,
+  fileName,
+  content,
+  providerId,
+  apiKey = '',
+  model,
+  maxAttempts = 3,
+  allowRepair = false,
+  statusPrefix = 'Compiling LaTeX remotely'
+}) {
+  let currentContent = String(content || '');
+  let lastOutput = '';
+  let repaired = false;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const structuralIssues = detectLatexStructuralIssues(currentContent);
+    if (attempt === 1 && structuralIssues.length) {
+      lastOutput = structuralIssues.join(' ');
+    }
+
+    setGenerationStatus(`${statusPrefix} (attempt ${attempt}/${maxAttempts})...`);
+    const compileResult = await runRemoteLatexCompileOnce({
+      env,
+      userId,
+      fileName,
+      content: currentContent
+    });
+    lastOutput = compileResult.output || lastOutput;
+
+    if (compileResult.success && compileResult.pdfBuffer?.length) {
+      return {
+        success: true,
+        attempts: attempt,
+        repaired,
+        output: compileResult.output,
+        content: currentContent,
+        pdfBuffer: compileResult.pdfBuffer
+      };
+    }
+
+    const shouldRepair = allowRepair && apiKey && attempt < maxAttempts;
+    if (shouldRepair) {
+      setGenerationStatus(`Repairing LaTeX syntax after remote compile failure (attempt ${attempt}/${maxAttempts})...`);
+      const repairedContent = await attemptLatexRepair({
+        providerId,
+        apiKey,
+        model,
+        content: currentContent,
+        compilerOutput: lastOutput
+      });
+      if (repairedContent && repairedContent !== currentContent) {
+        currentContent = repairedContent;
+        repaired = true;
+        continue;
+      }
+    }
+  }
+
+  return {
+    success: false,
+    attempts: maxAttempts,
+    repaired,
+    output: lastOutput,
+    content: currentContent,
+    pdfBuffer: null
   };
 }
 
@@ -1754,20 +2103,19 @@ async function handleCoverLetterDownload(req, res, basePath, context) {
 
 async function handleTexFile(req, res, basePath, context) {
   const fileName = decodeURIComponent(req.url.split('/api/tex/')[1].split('?')[0]);
-  const filePath = resolveSafePath(context.paths.texDir, fileName);
-  ensureDir(context.paths.texDir);
 
   if (req.method === 'GET') {
-    if (!fs.existsSync(filePath)) {
+    const content = await getStoredTexContent(context.paths, context.env, context.authContext.userId, fileName);
+    if (!content) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
-    sendJson(res, { content: fs.readFileSync(filePath, 'utf-8') });
+    sendJson(res, { content });
     return;
   }
 
   const body = await readJsonBody(req);
-  fs.writeFileSync(filePath, body.content || '', 'utf-8');
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, fileName, body.content || '');
   sendJson(res, { success: true });
 }
 
@@ -1814,10 +2162,12 @@ async function handleCompileTemplate(req, res, basePath, context) {
     return;
   }
 
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
   const previewName = `Preview_${type}_${fileName}`;
-  const previewTexPath = path.join(context.paths.texDir, previewName);
-  fs.copyFileSync(templatePath, previewTexPath);
+  const baseName = fileName.replace(/\.tex$/i, '').replace(/\.pdf$/i, '');
+  const templateContent = fs.readFileSync(templatePath, 'utf-8');
 
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
   const apiKey = await resolveProviderCredential(
@@ -1826,21 +2176,47 @@ async function handleCompileTemplate(req, res, basePath, context) {
     context.authContext.userId,
     settings.provider
   );
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName: previewName,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Compiling template preview'
-  });
-  cleanupLatexArtifacts(context.paths.texDir, previewName.replace('.tex', ''));
+  const latexMode = getLatexExecutionMode(context.env);
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName: previewName,
+        content: templateContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling template preview remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName: previewName,
+        content: templateContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling template preview'
+      });
 
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
-    sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
-    return;
+  if (latexMode === 'remote') {
+    if (!compileResult.success || !compileResult.pdfBuffer?.length) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
+      return;
+    }
+    await savePdfArtifact(context.paths, context.env, context.authContext.userId, `Preview_${type}_${baseName}.pdf`, compileResult.pdfBuffer, {
+      preview: true,
+      previewType: type
+    });
+  } else {
+    cleanupLatexArtifacts(context.paths.texDir, previewName.replace('.tex', ''));
+    if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
+      return;
+    }
   }
 
   sendJson(res, {
@@ -1856,6 +2232,20 @@ async function handleTemplatePdf(req, res, basePath, context) {
   const type = parts[0];
   const fileName = parts[1];
   const baseName = fileName.replace('.tex', '').replace('.pdf', '');
+  if (shouldUseBlobArtifacts(context.env) && context.authContext.userId) {
+    const blobResult = await getBlob(buildPreviewBlobPath(context.authContext.userId, type, `Preview_${type}_${baseName}.pdf`), {
+      access: 'private'
+    });
+    if (!blobResult?.stream) {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+    res.setHeader('Content-Type', blobResult.blob.contentType || 'application/pdf');
+    res.setHeader('Content-Length', String(blobResult.blob.size || 0));
+    streamWebToNode(blobResult.stream, res);
+    return;
+  }
   const filePath = path.join(context.paths.texDir, `Preview_${type}_${baseName}.pdf`);
   if (!fs.existsSync(filePath)) {
     res.statusCode = 404;
@@ -1870,7 +2260,9 @@ async function handleTemplatePdf(req, res, basePath, context) {
 
 async function handleCompileSavedTex(req, res, basePath, context) {
   const fileName = decodeURIComponent(req.url.split('/api/compile/')[1].split('?')[0]);
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
   const baseName = fileName.replace('.tex', '');
   const latexMode = getLatexExecutionMode(context.env);
 
@@ -1898,25 +2290,60 @@ async function handleCompileSavedTex(req, res, basePath, context) {
     context.authContext.userId,
     settings.provider
   );
+  const texContent = await getStoredTexContent(context.paths, context.env, context.authContext.userId, fileName);
+  if (!texContent) {
+    sendJson(res, { success: false, error: 'TeX source not found.' }, 404);
+    return;
+  }
 
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Recompiling saved LaTeX'
-  });
-  const finalPdfPath = path.join(context.paths.pdfDir, `${baseName}.pdf`);
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName,
+        content: texContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Recompiling saved LaTeX remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName,
+        content: texContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Recompiling saved LaTeX'
+      });
+  if (!compileResult.success) {
     sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF.' }, 500);
     return;
   }
 
-  fs.renameSync(compileResult.pdfPath, finalPdfPath);
-  cleanupLatexArtifacts(context.paths.texDir, baseName);
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, fileName, compileResult.content || texContent);
+
+  if (latexMode === 'remote') {
+    await savePdfArtifact(
+      context.paths,
+      context.env,
+      context.authContext.userId,
+      `${baseName}.pdf`,
+      compileResult.pdfBuffer
+    );
+  } else {
+    const finalPdfPath = path.join(context.paths.pdfDir, `${baseName}.pdf`);
+    if (!fs.existsSync(compileResult.pdfPath)) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF.' }, 500);
+      return;
+    }
+    fs.renameSync(compileResult.pdfPath, finalPdfPath);
+    cleanupLatexArtifacts(context.paths.texDir, baseName);
+  }
   sendJson(res, {
     success: true,
     attempts: compileResult.attempts,
@@ -1925,6 +2352,26 @@ async function handleCompileSavedTex(req, res, basePath, context) {
 }
 
 async function handleOutputsGet(res, basePath, context) {
+  if (context.authContext.userId && isSupabaseEnabled(context.env) && shouldUseBlobArtifacts(context.env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      context.env,
+      context.authContext.userId,
+      ['artifact_base_name', 'pdf_blob_path', 'pdf_blob_url', 'updated_at', 'created_at'],
+      (query) => query.order('updated_at', { ascending: false })
+    );
+    if (availableColumns.has('pdf_blob_path') || availableColumns.has('pdf_blob_url')) {
+      const files = (data || [])
+        .filter((row) => row.pdf_blob_path || row.pdf_blob_url)
+        .map((row) => ({
+          name: `${row.artifact_base_name}.pdf`,
+          time: new Date(row.updated_at || row.created_at || Date.now()).getTime()
+        }))
+        .sort((a, b) => b.time - a.time);
+      sendJson(res, { files });
+      return;
+    }
+  }
+
   if (!fs.existsSync(context.paths.pdfDir)) {
     sendJson(res, { files: [] });
     return;
@@ -1941,16 +2388,7 @@ async function handleOutputsGet(res, basePath, context) {
 
 async function handleOutputDownload(req, res, basePath, context) {
   const fileName = req.url.split('/api/output/')[1].split('?')[0];
-  const filePath = resolveSafePath(context.paths.pdfDir, fileName);
-  if (!fs.existsSync(filePath)) {
-    res.statusCode = 404;
-    res.end('Not found');
-    return;
-  }
-  const stat = fs.statSync(filePath);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Length', stat.size);
-  fs.createReadStream(filePath).pipe(res);
+  await streamPdfArtifactToResponse(context.paths, context.env, context.authContext.userId, fileName, res);
 }
 
 async function handleHighlight(req, res, basePath, context) {
@@ -2085,7 +2523,9 @@ async function handleGenerate(req, res, basePath, context) {
   const body = await readJsonBody(req);
   const { prompt, template } = body;
   setGenerationStatus('Initializing Core Evaluators and Loading System Context...');
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
 
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
   const apiKey = await resolveProviderCredential(
@@ -2315,10 +2755,11 @@ The cover letter must:
     aiText = aiText.substring(firstLineBreak + 1).trim();
   }
 
-  const texPath = path.join(context.paths.texDir, `${filename}.tex`);
-  fs.writeFileSync(texPath, aiText, 'utf-8');
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, `${filename}.tex`, aiText);
   const coverLetterFile = `${filename}_Cover_Letter.txt`;
-  fs.writeFileSync(path.join(context.paths.coverLettersDir, coverLetterFile), coverLetterText, 'utf-8');
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    fs.writeFileSync(path.join(context.paths.coverLettersDir, coverLetterFile), coverLetterText, 'utf-8');
+  }
 
   const applicationInfo = extractApplicationInfoFromJd(
     prompt,
@@ -2343,10 +2784,13 @@ The cover letter must:
     jd: prompt,
     coverLetterFile,
     coverLetterContent: coverLetterText,
+    texContent: aiText,
     createdAt: new Date().toISOString()
   }).catch(() => {});
 
-  if (getLatexExecutionMode(context.env) === 'worker' && context.authContext.userId) {
+  const latexMode = getLatexExecutionMode(context.env);
+
+  if (latexMode === 'worker' && context.authContext.userId) {
     const job = await enqueueGenerationJob(context.paths, context.env, context.authContext.userId, {
       source: 'generate',
       artifactBaseName: filename,
@@ -2368,22 +2812,38 @@ The cover letter must:
     return;
   }
 
-  setGenerationStatus('Compiling generated LaTeX syntax to PDF locally...');
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName: `${filename}.tex`,
-    content: aiText,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Compiling generated LaTeX syntax to PDF locally'
-  });
+  setGenerationStatus(
+    latexMode === 'remote'
+      ? 'Compiling generated LaTeX syntax through the remote PDF compiler...'
+      : 'Compiling generated LaTeX syntax to PDF locally...'
+  );
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName: `${filename}.tex`,
+        content: aiText,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling generated LaTeX syntax remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName: `${filename}.tex`,
+        content: aiText,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling generated LaTeX syntax to PDF locally'
+      });
 
-  const finalPdfPath = path.join(context.paths.pdfDir, `${filename}.pdf`);
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
-    cleanupLatexArtifacts(context.paths.texDir, filename);
+  if (!compileResult.success) {
+    if (latexMode !== 'remote') cleanupLatexArtifacts(context.paths.texDir, filename);
     setGenerationStatus('Idle');
     sendJson(res, {
       success: false,
@@ -2392,8 +2852,35 @@ The cover letter must:
     return;
   }
 
-  fs.renameSync(compileResult.pdfPath, finalPdfPath);
-  cleanupLatexArtifacts(context.paths.texDir, filename);
+  await saveStoredTexContent(
+    context.paths,
+    context.env,
+    context.authContext.userId,
+    `${filename}.tex`,
+    compileResult.content || aiText
+  );
+
+  if (latexMode === 'remote') {
+    await savePdfArtifact(
+      context.paths,
+      context.env,
+      context.authContext.userId,
+      `${filename}.pdf`,
+      compileResult.pdfBuffer
+    );
+  } else {
+    const finalPdfPath = path.join(context.paths.pdfDir, `${filename}.pdf`);
+    if (!fs.existsSync(compileResult.pdfPath)) {
+      setGenerationStatus('Idle');
+      sendJson(res, {
+        success: false,
+        error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF. Ensure pdflatex is installed on this machine.'
+      }, 500);
+      return;
+    }
+    fs.renameSync(compileResult.pdfPath, finalPdfPath);
+    cleanupLatexArtifacts(context.paths.texDir, filename);
+  }
 
   setGenerationStatus('Idle');
   sendJson(res, {

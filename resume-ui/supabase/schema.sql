@@ -49,6 +49,9 @@ create table if not exists public.generation_history (
   jd text,
   cover_letter_file text,
   cover_letter_content text,
+  tex_content text,
+  pdf_blob_path text,
+  pdf_blob_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, artifact_base_name)
@@ -56,6 +59,15 @@ create table if not exists public.generation_history (
 
 alter table public.generation_history
 add column if not exists cover_letter_content text;
+
+alter table public.generation_history
+add column if not exists tex_content text;
+
+alter table public.generation_history
+add column if not exists pdf_blob_path text;
+
+alter table public.generation_history
+add column if not exists pdf_blob_url text;
 
 create table if not exists public.generation_jobs (
   id uuid primary key default gen_random_uuid(),

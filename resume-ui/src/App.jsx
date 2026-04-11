@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { DataFormDispatcher, ProfileManager } from './DataForms';
-import { clearStoredSession, getBrowserSupabaseClient, setStoredSession } from './auth';
+import { buildAuthedApiUrl, clearStoredSession, getBrowserSupabaseClient, setStoredSession } from './auth';
 import './index.css';
 
 const setupMonaco = (monaco) => {
@@ -351,22 +351,28 @@ function App() {
   );
 }
 
-function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true }) {
+function getCompilerModeLabel(compilerMode) {
+  return compilerMode === 'remote' ? 'Remote Compiler' : 'Worker Mode';
+}
+
+function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true, compilerMode = 'worker' }) {
   return (
     <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
         <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
-          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : getCompilerModeLabel(compilerMode)}
         </span>
       </div>
       {!requiresLocalPdflatex && (
         <>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            PDF compilation is routed to the dedicated LaTeX worker in production mode.
+            {compilerMode === 'remote'
+              ? 'PDF compilation is routed through the managed remote LaTeX compiler in production mode.'
+              : 'PDF compilation is routed to the dedicated LaTeX worker in production mode.'}
           </div>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            This web app does not need a local <code>pdflatex</code> installation when worker mode is enabled.
+            This web app does not need a local <code>pdflatex</code> installation when {compilerMode === 'remote' ? 'remote compiler mode' : 'worker mode'} is enabled.
           </div>
         </>
       )}
@@ -389,7 +395,7 @@ function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true }) {
   );
 }
 
-function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
+function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true, compilerMode = 'worker' }) {
   const [platformInfo, setPlatformInfo] = useState({
     label: 'Your system',
     recommendedDistribution: 'MiKTeX or TeX Live',
@@ -413,7 +419,9 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
   const runReadinessCheck = () => {
     if (!requiresLocalPdflatex) {
       setCheckState({
-        status: 'Worker mode is enabled. Run the readiness check inside the LaTeX worker image or container instead.',
+        status: compilerMode === 'remote'
+          ? 'Remote compiler mode is enabled. Validate the external compile service and Blob storage instead of this local machine.'
+          : 'Worker mode is enabled. Run the readiness check inside the LaTeX worker image or container instead.',
         output: '',
         success: true
       });
@@ -444,7 +452,7 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
         <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
-          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : getCompilerModeLabel(compilerMode)}
         </span>
       </div>
       <div className="latex-setup-grid">
@@ -482,7 +490,9 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       </div>
       {!requiresLocalPdflatex && (
         <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-          This environment is configured to offload PDF compilation to the LaTeX worker. The installer links and readiness check are only needed for the worker image or any machine that runs the worker process.
+          {compilerMode === 'remote'
+            ? 'This environment is configured to offload PDF compilation to the remote compiler service. The installer links and readiness check are only needed for local inline compilation environments.'
+            : 'This environment is configured to offload PDF compilation to the LaTeX worker. The installer links and readiness check are only needed for the worker image or any machine that runs the worker process.'}
         </div>
       )}
       {requiresLocalPdflatex && pdflatexStatus.installed && (
@@ -504,7 +514,7 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       )}
       <div className="action-row" style={{justifyContent: 'flex-start', marginBottom: 0}}>
         <button className="primary-button" onClick={runReadinessCheck}>
-          {requiresLocalPdflatex ? 'Run Readiness Check' : 'How To Validate Worker'}
+          {requiresLocalPdflatex ? 'Run Readiness Check' : (compilerMode === 'remote' ? 'How To Validate Remote Mode' : 'How To Validate Worker')}
         </button>
       </div>
       {checkState.status && (
@@ -675,7 +685,7 @@ function OnboardingOverlay({ appConfig, onboardingState, onComplete }) {
               </div>
             )}
 
-            <LatexSetupWizard pdflatexStatus={pdflatex} requiresLocalPdflatex={requiresLocalPdflatex} />
+            <LatexSetupWizard pdflatexStatus={pdflatex} requiresLocalPdflatex={requiresLocalPdflatex} compilerMode={appConfig?.latex?.mode} />
           </div>
 
           <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
@@ -1086,11 +1096,13 @@ function GeneratorView({ state, setState, appConfig }) {
             </button>
           </div>
           {!pdflatexStatus.installed && requiresLocalPdflatex && (
-            <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
+            <LatexInstallHelp pdflatexStatus={pdflatexStatus} compilerMode={latexConfig.mode} />
           )}
           {!requiresLocalPdflatex && (
             <div className="status-banner info">
-              PDF compilation is configured for the dedicated LaTeX worker, so this web app does not need a local `pdflatex` install in production.
+              {latexConfig.mode === 'remote'
+                ? 'PDF compilation is configured for the remote LaTeX compiler, so this web app does not need a local `pdflatex` install in production.'
+                : 'PDF compilation is configured for the dedicated LaTeX worker, so this web app does not need a local `pdflatex` install in production.'}
             </div>
           )}
           {/* Live status strip while running */}
@@ -1134,7 +1146,7 @@ function GeneratorView({ state, setState, appConfig }) {
             {latestPdf && pdfOpen && (
               <div style={{ marginTop: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden', minHeight: latestPdf ? '700px' : '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
                 {latestPdf ? (
-                  <iframe src={`/api/output/${latestPdf.name}?req=${latestPdf.time}`} style={{width:'100%',height:'700px',border:'none'}} title="Resume Preview" />
+                  <iframe src={buildAuthedApiUrl(`/api/output/${latestPdf.name}?req=${latestPdf.time}`)} style={{width:'100%',height:'700px',border:'none'}} title="Resume Preview" />
                 ) : (
                   <div style={{ color: '#f59e0b', padding: '2rem', textAlign: 'center', lineHeight: 1.6 }}>Your resume is still syncing. Re-open this card in a moment.</div>
                 )}
@@ -1421,7 +1433,7 @@ function ProfileSettingsView({ appConfig }) {
         </p>
 
         <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-          <LatexInstallHelp pdflatexStatus={pdflatexStatus} requiresLocalPdflatex={requiresLocalPdflatex} />
+          <LatexInstallHelp pdflatexStatus={pdflatexStatus} requiresLocalPdflatex={requiresLocalPdflatex} compilerMode={appConfig?.latex?.mode} />
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
             <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Provider</label>
@@ -1822,7 +1834,7 @@ function TemplatesView({ type = 'wireframes' }) {
             )}
             {activeSubTab === 'preview' && (
               <iframe 
-                src={`/api/template-pdf/${type}/${activeFile}?req=${renderTimestamp}`}
+                src={buildAuthedApiUrl(`/api/template-pdf/${type}/${activeFile}?req=${renderTimestamp}`)}
                 style={{width: '100%', height: '100%', border: 'none', borderRadius: '4px'}}
                 title="Template Preview"
               />
@@ -1985,11 +1997,11 @@ function HistoryView({ appConfig }) {
                 {item.coverLetter ? 'Cover letter saved' : 'No cover letter saved'}
               </div>
               <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}} onClick={e => e.stopPropagation()}>
-                 <a href={`/api/output/${item.company}.pdf`} download className="primary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
+                 <a href={buildAuthedApiUrl(`/api/output/${item.company}.pdf`)} download className="primary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
                    ⬇ Download PDF
                  </a>
                  {item.coverLetterFile && (
-                   <a href={`/api/cover-letter/${item.coverLetterFile}`} download className="secondary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
+                   <a href={buildAuthedApiUrl(`/api/cover-letter/${item.coverLetterFile}`)} download className="secondary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
                      ⬇ Cover Letter
                    </a>
                  )}
@@ -2006,9 +2018,11 @@ function HistoryView({ appConfig }) {
            </div>
         ) : (
 	          <>
-              {latexConfig.mode === 'worker' && (
+              {latexConfig.mode !== 'inline' && (
                 <div className="status-banner info" style={{margin: '0 0 1rem 0'}}>
-                  Recompiles are queued to the dedicated LaTeX worker in production mode.
+                  {latexConfig.mode === 'remote'
+                    ? 'Recompiles are handled by the remote LaTeX compiler in production mode.'
+                    : 'Recompiles are queued to the dedicated LaTeX worker in production mode.'}
                 </div>
               )}
 	            {compileError && (
@@ -2046,7 +2060,7 @@ function HistoryView({ appConfig }) {
             <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
                {activeSubTab === 'preview' && (
                  <iframe 
-                   src={`/api/output/${activeItem.company}.pdf?req=${activeItem.timestamp}`}
+                   src={buildAuthedApiUrl(`/api/output/${activeItem.company}.pdf?req=${activeItem.timestamp}`)}
                    style={{width: '100%', height: '100%', border: 'none', borderRadius: '4px'}}
                    title="Archive Preview"
                  />
@@ -2061,7 +2075,7 @@ function HistoryView({ appConfig }) {
                    <div style={{display: 'flex', flexDirection: 'column', flex: 1, gap: '1rem'}}>
                      <div style={{display: 'flex', justifyContent: 'flex-end'}}>
                        {activeItem.coverLetterFile && (
-                         <a href={`/api/cover-letter/${activeItem.coverLetterFile}`} download className="secondary-button" style={{textDecoration: 'none'}}>
+                         <a href={buildAuthedApiUrl(`/api/cover-letter/${activeItem.coverLetterFile}`)} download className="secondary-button" style={{textDecoration: 'none'}}>
                            Download Cover Letter
                          </a>
                        )}
