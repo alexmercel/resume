@@ -7,14 +7,19 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(projectRoot, '..');
 const sharedAssetsRoot = path.join(projectRoot, 'shared-assets');
+const localSeedRoot = path.join(projectRoot, 'shared-seed');
 
 const copies = [
   {
-    from: path.join(repoRoot, 'Templates'),
+    from: fs.existsSync(path.join(repoRoot, 'Templates'))
+      ? path.join(repoRoot, 'Templates')
+      : path.join(localSeedRoot, 'Templates'),
     to: path.join(sharedAssetsRoot, 'Templates')
   },
   {
-    from: path.join(repoRoot, '.agent'),
+    from: fs.existsSync(path.join(repoRoot, '.agent'))
+      ? path.join(repoRoot, '.agent')
+      : path.join(localSeedRoot, '.agent'),
     to: path.join(sharedAssetsRoot, '.agent')
   }
 ];
