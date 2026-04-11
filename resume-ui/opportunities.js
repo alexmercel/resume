@@ -137,7 +137,7 @@ export function parseMarkdownTableOpportunities(markdown, source) {
     const applicationLinks = extractMarkdownLinks(applicationCell);
     const applyLink = applicationLinks.find((link) => /apply/i.test(link.label))?.url || applicationLinks[0]?.url || '';
     const companyUrl = companyLinks[0]?.url || '';
-    const simplifyLink = applicationLinks.find((link) => /simplify/i.test(link.label))?.url || '';
+    const simplifyUrl = applicationLinks.find((link) => /simplify/i.test(link.label))?.url || '';
 
     if (!company || !role || !location) continue;
 
