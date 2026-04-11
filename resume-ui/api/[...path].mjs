@@ -13,15 +13,20 @@ export const config = {
 };
 
 export default async function vercelApiHandler(req, res) {
+  const currentUrl = new URL(req.url || '/', 'http://localhost');
+  const queryPath = currentUrl.searchParams.get('path') || currentUrl.searchParams.get('__pathname') || '';
   const rawPath = Array.isArray(req.query?.path)
     ? req.query.path.join('/')
-    : String(req.query?.path || '').trim();
+    : String(req.query?.path || queryPath || '').trim();
 
   if (rawPath) {
-    const currentUrl = new URL(req.url || '/', 'http://localhost');
     currentUrl.searchParams.delete('path');
+    currentUrl.searchParams.delete('__pathname');
     const normalizedPath = rawPath.replace(/^\/+/, '');
-    req.url = `/api/${normalizedPath}${currentUrl.search || ''}`;
+    const resolvedPath = normalizedPath.startsWith('api/')
+      ? `/${normalizedPath}`
+      : `/api/${normalizedPath}`;
+    req.url = `${resolvedPath}${currentUrl.search || ''}`;
   }
 
   await handler(req, res);
