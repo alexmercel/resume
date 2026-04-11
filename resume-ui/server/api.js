@@ -213,12 +213,39 @@ function documentHasMeaningfulContent(fileName, content) {
   return normalizedContent !== String(getDefaultUserDocumentContent(fileName) || '').trim();
 }
 
+function normalizeTemplateType(type) {
+  return String(type || '').trim().toLowerCase() === 'generic' ? 'generic' : 'wireframes';
+}
+
+function getTemplateFolderName(type) {
+  return normalizeTemplateType(type) === 'generic' ? 'Generic' : 'Wireframes';
+}
+
+function getDefaultTemplateBoilerplate(type) {
+  return normalizeTemplateType(type) === 'generic'
+    ? '\\documentclass{article}\n\\begin{document}\n% New generic resume scaffold\n\\end{document}\n'
+    : '\\documentclass{article}\n\\begin{document}\n% New wireframe scaffold\n\\end{document}\n';
+}
+
 function getTemplatesRoot(basePath) {
   return path.join(resolveSharedAssetsBasePath(basePath), 'Templates');
 }
 
 function getAgentRoot(basePath) {
   return path.join(resolveSharedAssetsBasePath(basePath), '.agent');
+}
+
+function listSharedTemplateNames(basePath, type) {
+  const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(type));
+  if (!fs.existsSync(templateDir)) return [];
+  return fs.readdirSync(templateDir).filter((file) => file.endsWith('.tex'));
+}
+
+function readSharedTemplate(basePath, type, fileName) {
+  const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(type));
+  const filePath = resolveSafePath(templateDir, fileName);
+  if (!fs.existsSync(filePath)) return null;
+  return fs.readFileSync(filePath, 'utf-8');
 }
 
 function resolveSafePath(rootDir, rawName) {
@@ -244,6 +271,18 @@ function isMissingColumnError(error, columnName) {
     && (
       error.code === 'PGRST204'
       || (normalizedColumn && message.includes(normalizedColumn) && /column/i.test(message))
+    )
+  );
+}
+
+function isMissingTableError(error, tableName) {
+  const message = String(error?.message || '');
+  const normalizedTable = String(tableName || '').trim();
+  return Boolean(
+    error
+    && (
+      error.code === '42P01'
+      || (normalizedTable && message.includes(normalizedTable) && /relation|table/i.test(message))
     )
   );
 }
@@ -813,6 +852,107 @@ async function initializeUserWorkspace(paths, env, userId) {
     ensureUserSettingsSeeded(env, userId)
   ]);
   ensureWorkspaceDirs(paths);
+}
+
+async function listAccessibleTemplates(basePath, env, userId, type) {
+  const normalizedType = normalizeTemplateType(type);
+  const sharedTemplates = listSharedTemplateNames(basePath, normalizedType).map((templateName) => ({
+    name: templateName,
+    source: 'shared'
+  }));
+
+  if (!userId || !isSupabaseEnabled(env)) {
+    return sharedTemplates;
+  }
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_templates')
+    .select('template_name')
+    .eq('user_id', userId)
+    .eq('template_type', normalizedType)
+    .order('template_name', { ascending: true });
+
+  if (error) {
+    if (isMissingTableError(error, 'user_templates')) {
+      return sharedTemplates;
+    }
+    throw new Error(error.message || 'Failed to load user templates.');
+  }
+
+  const merged = new Map(sharedTemplates.map((item) => [item.name, item]));
+  for (const row of data || []) {
+    merged.set(row.template_name, {
+      name: row.template_name,
+      source: 'user'
+    });
+  }
+
+  return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function readAccessibleTemplate(basePath, env, userId, type, fileName) {
+  const normalizedType = normalizeTemplateType(type);
+  if (userId && isSupabaseEnabled(env)) {
+    const { admin } = await getDbClientsOrThrow(env);
+    const { data, error } = await admin
+      .from('user_templates')
+      .select('content, updated_at')
+      .eq('user_id', userId)
+      .eq('template_type', normalizedType)
+      .eq('template_name', fileName)
+      .maybeSingle();
+
+    if (error) {
+      if (!isMissingTableError(error, 'user_templates')) {
+        throw new Error(error.message || 'Failed to load template.');
+      }
+    }
+    if (data?.content != null) {
+      return {
+        content: data.content,
+        source: 'user',
+        updatedAt: data.updated_at || null
+      };
+    }
+  }
+
+  const sharedContent = readSharedTemplate(basePath, normalizedType, fileName);
+  if (sharedContent == null) return null;
+  return {
+    content: sharedContent,
+    source: 'shared',
+    updatedAt: null
+  };
+}
+
+async function saveUserTemplate(basePath, env, userId, type, fileName, content) {
+  const normalizedType = normalizeTemplateType(type);
+  const nextContent = String(content || '');
+
+  if (!userId || !isSupabaseEnabled(env)) {
+    const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(normalizedType));
+    const filePath = resolveSafePath(templateDir, fileName);
+    fs.writeFileSync(filePath, nextContent, 'utf-8');
+    return { source: 'shared' };
+  }
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_templates')
+    .upsert({
+      user_id: userId,
+      template_type: normalizedType,
+      template_name: fileName,
+      content: nextContent,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,template_type,template_name' });
+
+  if (error && isMissingTableError(error, 'user_templates')) {
+    throw new Error('The user_templates table is not available yet. Run the latest Supabase schema migration first.');
+  }
+  if (error) throw new Error(error.message || 'Failed to save user template.');
+  return { source: 'user' };
 }
 
 async function listUserApplications(paths, env, userId) {
@@ -2246,45 +2386,49 @@ async function handleTexFile(req, res, basePath, context) {
   sendJson(res, { success: true });
 }
 
-async function handleTemplatesGet(req, res, basePath) {
+async function handleTemplatesGet(req, res, basePath, context = null) {
   const type = req.url.split('/api/templates/')[1];
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(getTemplatesRoot(basePath), folder);
-  const templates = fs.existsSync(templateDir)
-    ? fs.readdirSync(templateDir).filter((file) => file.endsWith('.tex'))
-    : [];
-  sendJson(res, { templates });
+  const templates = await listAccessibleTemplates(
+    basePath,
+    context?.env || getAppEnv(basePath),
+    context?.authContext?.userId || null,
+    type
+  );
+  sendJson(res, {
+    templates: templates.map((item) => item.name),
+    entries: templates
+  });
 }
 
-async function handleTemplateFile(req, res, basePath) {
+async function handleTemplateFile(req, res, basePath, context = null) {
   const parts = req.url.split('/api/template/')[1].split('?')[0].split('/');
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(getTemplatesRoot(basePath), folder);
-  const filePath = resolveSafePath(templateDir, fileName);
+  const normalizedType = normalizeTemplateType(type);
+  const currentUserId = context?.authContext?.userId || null;
+  const env = context?.env || getAppEnv(basePath);
 
   if (req.method === 'GET') {
-    if (!fs.existsSync(filePath)) {
+    const template = await readAccessibleTemplate(basePath, env, currentUserId, normalizedType, fileName);
+    if (!template) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
-    sendJson(res, { content: fs.readFileSync(filePath, 'utf-8') });
+    sendJson(res, template);
     return;
   }
 
   const body = await readJsonBody(req);
-  fs.writeFileSync(filePath, body.content || '', 'utf-8');
-  sendJson(res, { success: true });
+  const result = await saveUserTemplate(basePath, env, currentUserId, normalizedType, fileName, body.content || '');
+  sendJson(res, { success: true, source: result.source });
 }
 
 async function handleCompileTemplate(req, res, basePath, context) {
   const parts = req.url.split('/api/compile-template/')[1].split('?')[0].split('/');
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templatePath = resolveSafePath(path.join(getTemplatesRoot(basePath), folder), fileName);
-  if (!fs.existsSync(templatePath)) {
+  const template = await readAccessibleTemplate(basePath, context.env, context.authContext.userId, type, fileName);
+  if (!template) {
     sendJson(res, { success: false, error: 'Template not found' }, 404);
     return;
   }
@@ -2294,7 +2438,7 @@ async function handleCompileTemplate(req, res, basePath, context) {
   }
   const previewName = `Preview_${type}_${fileName}`;
   const baseName = fileName.replace(/\.tex$/i, '').replace(/\.pdf$/i, '');
-  const templateContent = fs.readFileSync(templatePath, 'utf-8');
+  const templateContent = template.content;
 
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
   const apiKey = await resolveProviderCredential(
@@ -3174,12 +3318,12 @@ export function createRequestHandler({ basePath } = {}) {
       }
 
       if (request.url.startsWith('/api/templates/') && request.method === 'GET') {
-        await handleTemplatesGet(request, res, resolvedBasePath);
+        await handleTemplatesGet(request, res, resolvedBasePath, context);
         return;
       }
 
       if (request.url.startsWith('/api/template/')) {
-        await handleTemplateFile(request, res, resolvedBasePath);
+        await handleTemplateFile(request, res, resolvedBasePath, context);
         return;
       }
 

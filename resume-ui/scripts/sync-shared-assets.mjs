@@ -8,18 +8,20 @@ const projectRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(projectRoot, '..');
 const sharedAssetsRoot = path.join(projectRoot, 'shared-assets');
 const localSeedRoot = path.join(projectRoot, 'shared-seed');
+const templatesSourceRoot = fs.existsSync(path.join(repoRoot, 'Templates'))
+  ? path.join(repoRoot, 'Templates')
+  : path.join(localSeedRoot, 'Templates');
+const agentSourceRoot = fs.existsSync(path.join(repoRoot, '.agent'))
+  ? path.join(repoRoot, '.agent')
+  : path.join(localSeedRoot, '.agent');
 
 const copies = [
   {
-    from: fs.existsSync(path.join(repoRoot, 'Templates'))
-      ? path.join(repoRoot, 'Templates')
-      : path.join(localSeedRoot, 'Templates'),
-    to: path.join(sharedAssetsRoot, 'Templates')
+    from: path.join(templatesSourceRoot, 'Wireframes'),
+    to: path.join(sharedAssetsRoot, 'Templates', 'Wireframes')
   },
   {
-    from: fs.existsSync(path.join(repoRoot, '.agent'))
-      ? path.join(repoRoot, '.agent')
-      : path.join(localSeedRoot, '.agent'),
+    from: agentSourceRoot,
     to: path.join(sharedAssetsRoot, '.agent')
   }
 ];

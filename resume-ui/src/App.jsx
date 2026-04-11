@@ -1708,6 +1708,7 @@ function DataManagementView() {
 
 function TemplatesView({ type = 'wireframes' }) {
   const [files, setFiles] = useState([]);
+  const [templateEntries, setTemplateEntries] = useState({});
   const [activeFile, setActiveFile] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
@@ -1723,6 +1724,9 @@ function TemplatesView({ type = 'wireframes' }) {
       .then(data => {
          if (data.templates) {
             setFiles(data.templates);
+            setTemplateEntries(
+              Object.fromEntries((data.entries || []).map((entry) => [entry.name, entry]))
+            );
             if (data.templates.length > 0 && (!data.templates.includes(activeFile))) {
                setActiveFile(data.templates[0]);
             }
@@ -1743,6 +1747,13 @@ function TemplatesView({ type = 'wireframes' }) {
             if (data.content !== undefined) {
               setContent(data.content);
               setLastWorkingContent(data.content);
+              setTemplateEntries((prev) => ({
+                ...prev,
+                [activeFile]: {
+                  name: activeFile,
+                  source: data.source || prev[activeFile]?.source || 'shared'
+                }
+              }));
             } else {
               setContent('Error loading file.');
               setLastWorkingContent('');
@@ -1765,6 +1776,13 @@ function TemplatesView({ type = 'wireframes' }) {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
+         setTemplateEntries((prev) => ({
+           ...prev,
+           [activeFile]: {
+             name: activeFile,
+             source: data.source || 'user'
+           }
+         }));
          setStatus('Saved!');
          setTimeout(() => setStatus(''), 2000);
          return true;
@@ -1848,7 +1866,7 @@ function TemplatesView({ type = 'wireframes' }) {
     <div className="glass-panel" style={{height: 'calc(100vh - 120px)'}}>
 	      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
 	        <h2 className="panel-title" style={{margin: 0}}>
-	           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Generic Ready Resumes'}
+	           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Private Generic Resumes'}
 	        </h2>
 	        <div style={{display: 'flex', gap: '0.5rem'}}>
           <button className="secondary-button" onClick={handleSave} style={{padding: '0.5rem 1rem'}}>
@@ -1869,8 +1887,8 @@ function TemplatesView({ type = 'wireframes' }) {
 	      )}
 	      <p style={{color: 'var(--text-secondary)'}}>
 	        {type === 'wireframes' 
-	          ? 'Directly modify the structural `.tex` code for all AI generation wireframes.'
-	          : 'Manage and tweak your complete generic ready-to-use resume distributions.'}
+	          ? 'Starter wireframes are shared, but any edit or new template you save becomes private to your account.'
+	          : 'Generic resumes are private to your account only. Nothing in this area is shared across users.'}
       </p>
       <div style={{display: 'flex', gap: '1rem', height: '100%', minHeight: 0}}>
         {/* Left Sidebar */}
@@ -1881,7 +1899,12 @@ function TemplatesView({ type = 'wireframes' }) {
               className={`nav-item ${activeFile === file ? 'active' : ''}`}
               onClick={() => setActiveFile(file)}
             >
-              {file}
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center'}}>
+                <span>{file}</span>
+                <span className={`soft-pill ${templateEntries[file]?.source === 'user' ? 'success' : ''}`} style={{fontSize: '0.68rem'}}>
+                  {templateEntries[file]?.source === 'user' ? 'Private' : 'Starter'}
+                </span>
+              </div>
             </div>
           ))}
           <button className="secondary-button" onClick={handleNewTemplate} style={{ marginTop: '1rem', padding: '0.75rem', background: 'transparent', borderStyle: 'dashed', color: 'var(--text-secondary)' }}>

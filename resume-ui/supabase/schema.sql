@@ -28,6 +28,16 @@ create table if not exists public.user_provider_keys (
   primary key (user_id, provider)
 );
 
+create table if not exists public.user_templates (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  template_type text not null,
+  template_name text not null,
+  content text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, template_type, template_name)
+);
+
 create table if not exists public.application_records (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -97,6 +107,7 @@ on public.generation_jobs (status, created_at asc);
 alter table public.user_settings enable row level security;
 alter table public.user_documents enable row level security;
 alter table public.user_provider_keys enable row level security;
+alter table public.user_templates enable row level security;
 alter table public.application_records enable row level security;
 alter table public.generation_history enable row level security;
 alter table public.generation_jobs enable row level security;
@@ -115,6 +126,12 @@ with check (auth.uid() = user_id);
 
 create policy "user_provider_keys_owner_all"
 on public.user_provider_keys
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "user_templates_owner_all"
+on public.user_templates
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
