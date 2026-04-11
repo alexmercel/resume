@@ -356,7 +356,7 @@ export function ProfileManager({ rawMarkdown, onSave, onDiscard }) {
     <div className="section-scroll">
       <div className="action-row">
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       <FormCard title="Personal Identity Headers">
          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -428,7 +428,7 @@ function ProjectsManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addProj}>+ Add Project</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {projects.map(p => (
         <FormCard key={p.id} title={p.title} onRemove={() => removeProj(p.id)}>
@@ -554,7 +554,7 @@ function EducationManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addEd}>+ Add Education</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {education.map(e => (
         <FormCard key={e.id} title={e.school} onRemove={() => removeEd(e.id)}>
@@ -693,7 +693,7 @@ function SkillsManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addSkill}>+ Add Header Layer</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {skills.map(s => (
         <FormCard key={s.id} title={s.category} onRemove={() => removeSkill(s.id)}>
@@ -823,7 +823,7 @@ function WorkExManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addComp}>+ Add Company</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {companies.map(c => (
         <FormCard key={c.id} title={c.company} onRemove={() => removeComp(c.id)}>

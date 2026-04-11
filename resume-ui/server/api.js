@@ -19,9 +19,7 @@ import {
   generateWithUploadedResume
 } from './providers.js';
 import {
-  ensureOpportunitiesCacheDir,
-  getCachedOpportunitiesPayload,
-  getOpportunitiesPayload
+  ensureOpportunitiesCacheDir
 } from '../opportunities.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -207,13 +205,13 @@ function getDefaultUserDocumentContent(fileName) {
   return DEFAULT_USER_DOCUMENT_CONTENT[fileName] || '';
 }
 
-function documentHasMeaningfulContent(fileName, content) {
+export function documentHasMeaningfulContent(fileName, content) {
   const normalizedContent = String(content || '').trim();
   if (!normalizedContent) return false;
   return normalizedContent !== String(getDefaultUserDocumentContent(fileName) || '').trim();
 }
 
-function normalizeTemplateType(type) {
+export function normalizeTemplateType(type) {
   return String(type || '').trim().toLowerCase() === 'generic' ? 'generic' : 'wireframes';
 }
 
@@ -578,29 +576,24 @@ export async function getUserSettings(paths, env, userId = null) {
       .select('provider, encrypted_key')
       .eq('user_id', userId)
   ]);
-  const legacy = readLegacySettings(paths);
 
   const provider = getProvider(
     settingsRow?.preferred_provider
-      || legacy.provider
       || 'google'
   ).id;
   const keyMap = new Map((keyRows || []).map((row) => [row.provider, row.encrypted_key]));
-  const legacyProviderKey = provider === 'google'
-    ? (legacy.providerKeys?.google || legacy.geminiApiKey || '')
-    : (legacy.providerKeys?.[provider] || '');
-  const configuredKey = keyMap.get(provider) || legacyProviderKey || env[getProvider(provider).envKey] || '';
-  const hasUserKey = Boolean(keyMap.get(provider) || legacyProviderKey);
+  const configuredKey = keyMap.get(provider) || env[getProvider(provider).envKey] || '';
+  const hasUserKey = Boolean(keyMap.get(provider));
 
   return {
     provider,
-    selectedModel: settingsRow?.preferred_model || legacy.selectedModel || getDefaultModelForProvider(provider),
-    dailyApplicationGoal: normalizeDailyGoal(settingsRow?.daily_application_goal || legacy.dailyApplicationGoal || 5),
+    selectedModel: settingsRow?.preferred_model || getDefaultModelForProvider(provider),
+    dailyApplicationGoal: normalizeDailyGoal(settingsRow?.daily_application_goal || 5),
     providerKeyConfigured: Boolean(configuredKey),
     keySource: hasUserKey ? 'user' : (env[getProvider(provider).envKey] ? 'server' : 'none'),
     geminiApiKey: '',
     geminiModel: provider === 'google'
-      ? (settingsRow?.preferred_model || legacy.geminiModel || legacy.selectedModel || getDefaultModelForProvider('google'))
+      ? (settingsRow?.preferred_model || getDefaultModelForProvider('google'))
       : getDefaultModelForProvider('google')
   };
 }
@@ -697,9 +690,6 @@ export async function resolveProviderCredential(paths, env, userId, providerId, 
     .maybeSingle();
   if (error) throw new Error(error.message || 'Failed to load provider key.');
   if (data?.encrypted_key) return decryptSecret(data.encrypted_key, env);
-  const legacy = readLegacySettings(paths);
-  if (provider.id === 'google' && legacy.geminiApiKey) return legacy.geminiApiKey;
-  if (legacy.providerKeys?.[provider.id]) return legacy.providerKeys[provider.id];
   if (env[provider.envKey]) return env[provider.envKey];
   return '';
 }
@@ -732,14 +722,9 @@ async function listProviderConfigurations(paths, env, userId = null) {
     .eq('user_id', userId);
   if (error) throw new Error(error.message || 'Failed to load provider configuration.');
 
-  const legacy = readLegacySettings(paths);
   const userProviderSet = new Set((data || []).map((row) => row.provider));
   return providers.map((provider) => {
-    const hasLegacyUserKey = Boolean(
-      legacy.providerKeys?.[provider.id]
-      || (provider.id === 'google' && legacy.geminiApiKey)
-    );
-    const hasUserKey = userProviderSet.has(provider.id) || hasLegacyUserKey;
+    const hasUserKey = userProviderSet.has(provider.id);
     const hasServerKey = Boolean(env[provider.envKey]);
     return {
       id: provider.id,
@@ -1139,6 +1124,7 @@ async function upsertGenerationHistoryFields(env, payload) {
 async function getStoredTexContent(paths, env, userId, fileName) {
   const normalizedFileName = String(fileName || '').trim();
   const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
+  const filePath = resolveSafePath(paths.texDir, normalizedFileName);
 
   if (userId && isSupabaseEnabled(env)) {
     const { data, availableColumns } = await selectGenerationHistoryRows(
@@ -1150,9 +1136,10 @@ async function getStoredTexContent(paths, env, userId, fileName) {
     if (availableColumns.has('tex_content') && data?.tex_content != null) {
       return data.tex_content;
     }
+    if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
+    return '';
   }
 
-  const filePath = resolveSafePath(paths.texDir, normalizedFileName);
   if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
 
   const legacyPath = path.join(paths.legacyTexDir, normalizedFileName);
@@ -1282,9 +1269,7 @@ async function readUserHistory(paths, env, userId) {
     (query) => query.order('created_at', { ascending: false })
   );
 
-  if (!data?.length) {
-    return scanHistoryFromFiles(paths);
-  }
+  if (!data?.length) return [];
 
   return data.map((row) => {
     const coverLetterPath = row.cover_letter_file
@@ -1887,21 +1872,21 @@ function calculateMatchedKeywords(jdKeywords, content) {
   return deduped.filter((keyword) => contentContainsKeyword(content, keyword));
 }
 
-function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
+export function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
   const text = String(jd || '').trim();
   const normalizedFallbackCompany = String(fallbackCompany || '').replace(/_/g, ' ').trim();
   const normalizedFallbackRole = String(fallbackRole || '').replace(/_/g, ' ').trim();
 
   const companyPatterns = [
-    /\bat\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i,
-    /\bjoin\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i,
-    /\bcompany:\s*([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i
+    /\bat\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i,
+    /\bjoin\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i,
+    /\bcompany:\s*([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i
   ];
 
   const rolePatterns = [
-    /\b(?:seeking|hiring|looking for|looking to hire)\s+(?:an?\s+)?([A-Z][A-Za-z0-9/,+ -]{3,80})/i,
-    /\bposition:\s*([A-Z][A-Za-z0-9/,+ -]{3,80})/i,
-    /\brole:\s*([A-Z][A-Za-z0-9/,+ -]{3,80})/i
+    /\b(?:seeking|hiring|looking for|looking to hire)\s+(?:an?\s+)?([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i,
+    /\bposition:\s*([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i,
+    /\brole:\s*([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i
   ];
 
   const cleanValue = (value) => String(value || '')
@@ -3169,28 +3154,6 @@ The cover letter must:
   });
 }
 
-async function handleOpportunities(req, res, basePath, context) {
-  const url = new URL(req.url, 'http://localhost');
-  const refresh = url.searchParams.get('refresh') === '1';
-  const cacheOnly = url.searchParams.get('cache_only') === '1';
-  const payload = cacheOnly
-    ? getCachedOpportunitiesPayload(context.paths.opportunitiesCachePath)
-    : await getOpportunitiesPayload({
-        forceRefresh: refresh,
-        cachePath: context.paths.opportunitiesCachePath
-      });
-
-  sendJson(res, {
-    success: true,
-    updatedAt: payload.updatedAt,
-    fetchedAt: payload.fetchedAt,
-    fromCache: Boolean(payload.fromCache),
-    stale: Boolean(payload.stale),
-    opportunities: payload.opportunities || [],
-    sources: payload.sources || []
-  });
-}
-
 export function createRequestHandler({ basePath } = {}) {
   const resolvedBasePath = basePath || path.resolve(__dirname, '..', '..');
   return async function handleRequest(req, res, next = null) {
@@ -3289,11 +3252,6 @@ export function createRequestHandler({ basePath } = {}) {
 
       if (request.url === '/api/applications' && request.method === 'GET') {
         await handleApplicationsGet(res, resolvedBasePath, context);
-        return;
-      }
-
-      if (request.url.startsWith('/api/opportunities') && request.method === 'GET') {
-        await handleOpportunities(request, res, resolvedBasePath, context);
         return;
       }
 

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "npm run sync-shared-assets && vite build",
     "lint": "eslint .",
+    "test": "node --test",
     "sync-shared-assets": "node ./scripts/sync-shared-assets.mjs",
     "start": "node ./server/index.mjs",
     "start:worker": "node ./server/latex-worker.mjs",
