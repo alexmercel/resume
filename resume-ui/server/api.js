@@ -101,6 +101,21 @@ function buildTempTexBlobPath(userId, fileName) {
   return `users/${userId || 'anonymous'}/temp/${Date.now()}-${token}-${safeName}`;
 }
 
+function getPublicAppBaseUrl(env) {
+  const explicit = String(env.APP_BASE_URL || env.APP_PUBLIC_BASE_URL || '').trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+
+  const vercelHost = String(
+    env.VERCEL_PROJECT_PRODUCTION_URL
+      || env.VERCEL_BRANCH_URL
+      || env.VERCEL_URL
+      || ''
+  ).trim().replace(/^https?:\/\//, '');
+  if (vercelHost) return `https://${vercelHost}`;
+
+  return 'http://localhost:3000';
+}
+
 function shouldUseEphemeralRuntime(env) {
   return Boolean(env?.VERCEL);
 }
@@ -446,6 +461,23 @@ function decryptSecret(payload, env) {
     decipher.final()
   ]);
   return decrypted.toString('utf-8');
+}
+
+function createRemoteTexAccessToken(env, payload) {
+  return encodeURIComponent(encryptSecret(JSON.stringify(payload), env));
+}
+
+function readRemoteTexAccessToken(env, token) {
+  if (!token) return null;
+  try {
+    const decrypted = decryptSecret(decodeURIComponent(token), env);
+    const parsed = JSON.parse(decrypted);
+    if (!parsed?.blobPath || !parsed?.expiresAt) return null;
+    if (Number(parsed.expiresAt) < Date.now()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function readLegacySettings(paths) {
@@ -1713,7 +1745,12 @@ async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
 
   try {
     const compileUrl = new URL('/compile', `${remoteConfig.baseUrl}/`);
-    compileUrl.searchParams.set('url', tempBlob.downloadUrl || tempBlob.url);
+    const accessToken = createRemoteTexAccessToken(env, {
+      blobPath: tempBlob.pathname,
+      expiresAt: Date.now() + (5 * 60 * 1000)
+    });
+    const sourceUrl = new URL(`/api/remote-tex/${accessToken}`, getPublicAppBaseUrl(env));
+    compileUrl.searchParams.set('url', sourceUrl.toString());
     compileUrl.searchParams.set('download', path.basename(fileName).replace(/\.tex$/i, '.pdf'));
     if (remoteConfig.command) {
       compileUrl.searchParams.set('command', remoteConfig.command);
@@ -1745,7 +1782,7 @@ async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
   }
 }
 
-async function compileLatexRemotelyWithRetries({
+export async function compileLatexRemotelyWithRetries({
   env,
   userId,
   fileName,
@@ -2647,6 +2684,27 @@ async function handleOutputDownload(req, res, basePath, context) {
   await streamPdfArtifactToResponse(context.paths, context.env, context.authContext.userId, fileName, res);
 }
 
+async function handleRemoteTexSource(req, res, basePath) {
+  const env = getAppEnv(basePath);
+  const token = decodeURIComponent(req.url.split('/api/remote-tex/')[1].split('?')[0] || '');
+  const payload = readRemoteTexAccessToken(env, token);
+  if (!payload?.blobPath) {
+    res.statusCode = 403;
+    res.end('Invalid or expired token');
+    return;
+  }
+
+  const blobResult = await getBlob(payload.blobPath, { access: 'private' });
+  if (!blobResult?.stream) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return;
+  }
+
+  res.setHeader('Content-Type', blobResult.blob.contentType || 'application/x-tex; charset=utf-8');
+  streamWebToNode(blobResult.stream, res);
+}
+
 async function handleHighlight(req, res, basePath, context) {
   const body = await readJsonBody(req);
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
@@ -3188,6 +3246,11 @@ export function createRequestHandler({ basePath } = {}) {
 
       if (request.url === '/api/session' && request.method === 'GET') {
         await handleSessionRoute(request, res, resolvedBasePath);
+        return;
+      }
+
+      if (request.url.startsWith('/api/remote-tex/') && request.method === 'GET') {
+        await handleRemoteTexSource(request, res, resolvedBasePath);
         return;
       }
 
