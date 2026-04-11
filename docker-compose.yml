@@ -1,0 +1,32 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: resume-ui/Dockerfile.web
+    env_file:
+      - ./resume-ui/.env.local
+    environment:
+      HOST: 0.0.0.0
+      PORT: 4173
+      LATEX_QUEUE_MODE: worker
+    ports:
+      - "4173:4173"
+    volumes:
+      - runtime_data:/app/Runtime_Data
+    restart: unless-stopped
+
+  latex-worker:
+    build:
+      context: .
+      dockerfile: resume-ui/Dockerfile.worker
+    env_file:
+      - ./resume-ui/.env.local
+    environment:
+      LATEX_QUEUE_MODE: worker
+      LATEX_WORKER_POLL_MS: 3000
+    volumes:
+      - runtime_data:/app/Runtime_Data
+    restart: unless-stopped
+
+volumes:
+  runtime_data:

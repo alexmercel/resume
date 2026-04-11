@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { DataFormDispatcher, ProfileManager } from './DataForms';
+import { clearStoredSession, getBrowserSupabaseClient, setStoredSession } from './auth';
 import './index.css';
 
 const setupMonaco = (monaco) => {
@@ -13,22 +14,139 @@ const setupMonaco = (monaco) => {
           [/\\begin\{[a-zA-Z0-9_*-]+\}/, 'keyword'],
           [/\\end\{[a-zA-Z0-9_*-]+\}/, 'keyword'],
           [/\\[a-zA-Z@*]+/, 'keyword'],
-          [/[\{\}\[\]]/, 'delimiter'],
-          [/\$[^\$]*\$/, 'string'],
+          [/[{}[\]]/, 'delimiter'],
+          [/\$[^$]*\$/, 'string'],
         ]
       }
     });
   }
 };
 
+function LoadingScreen({ label }) {
+  return (
+    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="glass-panel" style={{ maxWidth: '520px', margin: 0, textAlign: 'center' }}>
+        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>Resume Builder Studio</h2>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {label || 'Loading workspace...'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AuthGate({ supabaseClient }) {
+  const [mode, setMode] = useState('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!email.trim() || !password.trim()) {
+      setStatus('Email and password are both required.');
+      return;
+    }
+
+    if (!supabaseClient) {
+      setStatus('Supabase is not configured correctly yet.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus(mode === 'signin' ? 'Signing you in...' : 'Creating your account...');
+
+    try {
+      const response = mode === 'signin'
+        ? await supabaseClient.auth.signInWithPassword({ email: email.trim(), password })
+        : await supabaseClient.auth.signUp({ email: email.trim(), password });
+
+      if (response.error) throw response.error;
+      if (response.data?.session) {
+        setStoredSession(response.data.session);
+      }
+
+      setStatus(
+        mode === 'signin'
+          ? 'Signed in successfully.'
+          : 'Account created. If email confirmation is enabled in Supabase, confirm your email before signing in.'
+      );
+    } catch (error) {
+      setStatus(error.message || 'Authentication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel" style={{ maxWidth: '520px', width: '100%', margin: 0 }}>
+        <div className="soft-pill" style={{ marginBottom: '1rem', alignSelf: 'flex-start' }}>Secure multi-user mode</div>
+        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>Sign in to your workspace</h2>
+        <p style={{ color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.6 }}>
+          Your resume data, generated artifacts, and provider keys are now scoped per account when Supabase is enabled.
+        </p>
+
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+          <button
+            className={mode === 'signin' ? 'primary-button' : 'secondary-button'}
+            onClick={() => setMode('signin')}
+            style={{ flex: 1 }}
+          >
+            Sign In
+          </button>
+          <button
+            className={mode === 'signup' ? 'primary-button' : 'secondary-button'}
+            onClick={() => setMode('signup')}
+            style={{ flex: 1 }}
+          >
+            Create Account
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+          />
+          <button className="primary-button" onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? 'Working...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+          </button>
+        </div>
+
+        {status && (
+          <div className={`status-banner ${status.toLowerCase().includes('success') || status.toLowerCase().includes('confirm') ? 'info' : 'warning'}`} style={{ marginTop: '1rem' }}>
+            {status}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const [appConfig, setAppConfig] = useState(null);
+  const [supabaseClient, setSupabaseClient] = useState(null);
+  const [authState, setAuthState] = useState({
+    ready: false,
+    user: null
+  });
   const [activeTab, setActiveTab] = useState('generator');
   const [onboardingState, setOnboardingState] = useState({
     loading: true,
     needsOnboarding: false,
     fileStatuses: [],
-    settings: { geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite' },
+    settings: { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
     models: [],
+    providers: [],
     pdflatex: { installed: false, version: '' }
   });
   const [generatorState, setGeneratorState] = useState({
@@ -46,6 +164,56 @@ function App() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+    let authSubscription = null;
+
+    fetch('/api/app-config')
+      .then((res) => res.json())
+      .then(async (data) => {
+        if (cancelled) return;
+        setAppConfig(data);
+
+        if (!data?.authEnabled) {
+          setAuthState({ ready: true, user: null });
+          return;
+        }
+
+        const client = getBrowserSupabaseClient(data.supabase);
+        setSupabaseClient(client);
+
+        const sessionResult = await client.auth.getSession();
+        if (cancelled) return;
+        const session = sessionResult.data?.session || null;
+        setStoredSession(session);
+        setAuthState({
+          ready: true,
+          user: session?.user || null
+        });
+
+        const authResult = client.auth.onAuthStateChange((_event, nextSession) => {
+          setStoredSession(nextSession);
+          setAuthState({
+            ready: true,
+            user: nextSession?.user || null
+          });
+        });
+        authSubscription = authResult.data.subscription;
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAuthState({ ready: true, user: null });
+      });
+
+    return () => {
+      cancelled = true;
+      authSubscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authState.user);
+    if (!canLoadWorkspace) return;
+
     fetch('/api/onboarding-status')
       .then(res => res.json())
       .then(data => {
@@ -53,15 +221,30 @@ function App() {
           loading: false,
           needsOnboarding: !!data.needsOnboarding,
           fileStatuses: data.fileStatuses || [],
-          settings: data.settings || { geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite' },
+          settings: data.settings || { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
           models: data.models || [],
+          providers: data.providers || [],
           pdflatex: data.pdflatex || { installed: false, version: '' }
         });
       })
       .catch(() => {
         setOnboardingState((prev) => ({ ...prev, loading: false }));
       });
-  }, []);
+  }, [appConfig, authState.ready, authState.user]);
+
+  if (!appConfig || !authState.ready) {
+    return <LoadingScreen label="Loading production-ready workspace..." />;
+  }
+
+  if (appConfig.authEnabled && !authState.user) {
+    return <AuthGate supabaseClient={supabaseClient} />;
+  }
+
+  const handleSignOut = async () => {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    clearStoredSession();
+  };
 
   return (
     <div className="app-container">
@@ -69,6 +252,9 @@ function App() {
         <h1>Resume Builder Studio</h1>
         <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
           <div style={{color: 'var(--text-secondary)', fontSize: '0.875rem'}}>AI-Powered LaTeX Generation</div>
+          {appConfig.authEnabled && authState.user?.email && (
+            <div className="soft-pill">{authState.user.email}</div>
+          )}
           <button
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
@@ -76,6 +262,15 @@ function App() {
           >
             🛠️ Profile & AI
           </button>
+          {appConfig.authEnabled && (
+            <button
+              className="secondary-button"
+              onClick={handleSignOut}
+              style={{padding: '0.55rem 0.9rem'}}
+            >
+              Sign Out
+            </button>
+          )}
         </div>
       </header>
       
@@ -125,12 +320,12 @@ function App() {
           </div>
         </aside>
         
-        {activeTab === 'generator' && <GeneratorView state={generatorState} setState={setGeneratorState} />}
-        {activeTab === 'profile' && <ProfileSettingsView />}
+        {activeTab === 'generator' && <GeneratorView state={generatorState} setState={setGeneratorState} appConfig={appConfig} />}
+        {activeTab === 'profile' && <ProfileSettingsView appConfig={appConfig} />}
         {activeTab === 'data' && <DataManagementView />}
         {activeTab === 'templates' && <TemplatesView type="wireframes" />}
         {activeTab === 'generic' && <TemplatesView type="generic" />}
-        {activeTab === 'history' && <HistoryView />}
+        {activeTab === 'history' && <HistoryView appConfig={appConfig} />}
         {activeTab === 'tracker' && <ApplicationsView />}
         {activeTab === 'opportunities' && <OpportunitiesView />}
         
@@ -144,6 +339,7 @@ function App() {
 
       {!onboardingState.loading && onboardingState.needsOnboarding && (
         <OnboardingOverlay
+          appConfig={appConfig}
           onboardingState={onboardingState}
           onComplete={() => {
             setOnboardingState((prev) => ({ ...prev, needsOnboarding: false }));
@@ -155,20 +351,31 @@ function App() {
   );
 }
 
-function LatexInstallHelp({ pdflatexStatus }) {
+function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true }) {
   return (
     <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
-        <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
-          {pdflatexStatus.installed ? 'Installed' : 'Missing'}
+        <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
         </span>
       </div>
-      {pdflatexStatus.installed ? (
+      {!requiresLocalPdflatex && (
+        <>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            PDF compilation is routed to the dedicated LaTeX worker in production mode.
+          </div>
+          <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+            This web app does not need a local <code>pdflatex</code> installation when worker mode is enabled.
+          </div>
+        </>
+      )}
+      {requiresLocalPdflatex && pdflatexStatus.installed && (
         <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
           {pdflatexStatus.version || 'pdflatex detected on this machine.'}
         </div>
-      ) : (
+      )}
+      {requiresLocalPdflatex && !pdflatexStatus.installed && (
         <>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
             PDF generation needs <code>pdflatex</code> installed and available in PATH.
@@ -182,7 +389,7 @@ function LatexInstallHelp({ pdflatexStatus }) {
   );
 }
 
-function LatexSetupWizard({ pdflatexStatus }) {
+function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
   const [platformInfo, setPlatformInfo] = useState({
     label: 'Your system',
     recommendedDistribution: 'MiKTeX or TeX Live',
@@ -204,6 +411,14 @@ function LatexSetupWizard({ pdflatexStatus }) {
   }, []);
 
   const runReadinessCheck = () => {
+    if (!requiresLocalPdflatex) {
+      setCheckState({
+        status: 'Worker mode is enabled. Run the readiness check inside the LaTeX worker image or container instead.',
+        output: '',
+        success: true
+      });
+      return;
+    }
     setCheckState({ status: 'Running readiness check...', output: '', success: false });
     fetch('/api/latex-setup-check', { method: 'POST' })
       .then(async (res) => {
@@ -228,8 +443,8 @@ function LatexSetupWizard({ pdflatexStatus }) {
     <div className="surface-block latex-setup-card" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
-        <span className={`soft-pill ${pdflatexStatus.installed ? 'success' : ''}`}>
-          {pdflatexStatus.installed ? 'Installed' : 'Missing'}
+        <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
         </span>
       </div>
       <div className="latex-setup-grid">
@@ -265,11 +480,17 @@ function LatexSetupWizard({ pdflatexStatus }) {
           </div>
         </div>
       </div>
-      {pdflatexStatus.installed ? (
+      {!requiresLocalPdflatex && (
+        <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
+          This environment is configured to offload PDF compilation to the LaTeX worker. The installer links and readiness check are only needed for the worker image or any machine that runs the worker process.
+        </div>
+      )}
+      {requiresLocalPdflatex && pdflatexStatus.installed && (
         <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
           {pdflatexStatus.version || 'pdflatex detected on this machine.'}
         </div>
-      ) : (
+      )}
+      {requiresLocalPdflatex && !pdflatexStatus.installed && (
         <>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
             PDF generation needs <code>pdflatex</code> installed and available in PATH.
@@ -282,7 +503,9 @@ function LatexSetupWizard({ pdflatexStatus }) {
         </>
       )}
       <div className="action-row" style={{justifyContent: 'flex-start', marginBottom: 0}}>
-        <button className="primary-button" onClick={runReadinessCheck}>Run Readiness Check</button>
+        <button className="primary-button" onClick={runReadinessCheck}>
+          {requiresLocalPdflatex ? 'Run Readiness Check' : 'How To Validate Worker'}
+        </button>
       </div>
       {checkState.status && (
         <div className={`status-banner ${checkState.success ? 'info' : 'warning'}`}>
@@ -294,23 +517,50 @@ function LatexSetupWizard({ pdflatexStatus }) {
   );
 }
 
-function OnboardingOverlay({ onboardingState, onComplete }) {
-  const [apiKey, setApiKey] = useState(onboardingState.settings?.geminiApiKey || '');
-  const [model, setModel] = useState(onboardingState.settings?.geminiModel || 'gemini-2.5-flash-lite');
-  const [resumeFile, setResumeFile] = useState(null);
-  const [status, setStatus] = useState('');
-  const [result, setResult] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const models = onboardingState.models?.length ? onboardingState.models : [
+function OnboardingOverlay({ appConfig, onboardingState, onComplete }) {
+  const [provider, setProvider] = useState(onboardingState.settings?.provider || 'google');
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState(onboardingState.settings?.selectedModel || 'gemini-2.5-flash-lite');
+  const [availableModels, setAvailableModels] = useState(onboardingState.models?.length ? onboardingState.models : [
     'gemini-3.1-flash-lite-preview',
     'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite'
-  ];
+  ]);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [status, setStatus] = useState('');
+  const [result, setResult] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const providerOptions = onboardingState.providers?.length ? onboardingState.providers : (appConfig?.providers || []);
   const missingFiles = onboardingState.fileStatuses.filter((file) => !file.exists || !file.hasContent);
   const pdflatex = onboardingState.pdflatex || { installed: false, version: '' };
+  const providerLabel = providerOptions.find((item) => item.id === provider)?.name || 'Provider';
+  const requiresLocalPdflatex = appConfig?.latex?.requiresLocalPdflatex !== false;
+
+  useEffect(() => {
+    const isInitialProvider = provider === onboardingState.settings?.provider;
+    if (isInitialProvider && onboardingState.models?.length) {
+      setAvailableModels(onboardingState.models);
+      if (!onboardingState.models.includes(model)) {
+        setModel(onboardingState.models[0]);
+      }
+      return;
+    }
+
+    fetch(`/api/models?provider=${provider}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const nextModels = data.models?.length ? data.models : [];
+        if (!nextModels.length) return;
+        setAvailableModels(nextModels);
+        if (!nextModels.includes(model)) {
+          setModel(nextModels[0]);
+        }
+      })
+      .catch(() => {});
+  }, [provider]);
 
   const handleImport = () => {
     if (!resumeFile) {
@@ -330,8 +580,9 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            geminiApiKey: apiKey,
-            geminiModel: model,
+            provider,
+            providerApiKey: apiKey,
+            selectedModel: model,
             fileName: resumeFile.name,
             mimeType: resumeFile.type || 'application/pdf',
             base64Data
@@ -377,19 +628,28 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
             </div>
 
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
-              <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini API Key</label>
+              <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Provider</label>
+              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+                {providerOptions.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
+              <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>{providerLabel} API Key</label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Paste your Google AI Studio API key"
+                placeholder={`Optional if ${providerLabel} is already configured on the server`}
               />
             </div>
 
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
-              <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini Model</label>
+              <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>{providerLabel} Model</label>
               <select value={model} onChange={(e) => setModel(e.target.value)}>
-                {models.map((item) => (
+                {availableModels.map((item) => (
                   <option key={item} value={item}>{item}</option>
                 ))}
               </select>
@@ -415,7 +675,7 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
               </div>
             )}
 
-            <LatexSetupWizard pdflatexStatus={pdflatex} />
+            <LatexSetupWizard pdflatexStatus={pdflatex} requiresLocalPdflatex={requiresLocalPdflatex} />
           </div>
 
           <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
@@ -440,12 +700,16 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
 
                 <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem'}}>
-                    <span>Gemini API key</span>
-                    <span className="soft-pill success">{result.savedSettings?.geminiApiKey ? 'Stored' : 'Missing'}</span>
+                    <span>{providerLabel} API key</span>
+                    <span className="soft-pill success">{result.savedSettings?.providerKeyConfigured ? 'Stored / Ready' : 'Missing'}</span>
                   </div>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem'}}>
-                    <span>Gemini model</span>
-                    <span className="soft-pill success">{result.savedSettings?.geminiModel || model}</span>
+                    <span>Provider</span>
+                    <span className="soft-pill success">{result.savedSettings?.provider || provider}</span>
+                  </div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem'}}>
+                    <span>Selected model</span>
+                    <span className="soft-pill success">{result.savedSettings?.selectedModel || model}</span>
                   </div>
                 </div>
 
@@ -461,7 +725,7 @@ function OnboardingOverlay({ onboardingState, onComplete }) {
   );
 }
 
-function GeneratorView({ state, setState }) {
+function GeneratorView({ state, setState, appConfig }) {
   const {
     jd,
     template,
@@ -480,8 +744,53 @@ function GeneratorView({ state, setState }) {
   const [copyStatus, setCopyStatus] = useState('');
   const [jdActionStatus, setJdActionStatus] = useState('');
   const resultsRef = React.useRef(null);
+  const latexConfig = appConfig?.latex || { mode: 'inline', requiresLocalPdflatex: true };
+  const requiresLocalPdflatex = latexConfig.requiresLocalPdflatex !== false;
   const updateGeneratorState = (patch) => {
     setState((prev) => ({ ...prev, ...patch }));
+  };
+
+  const watchGenerationJob = (jobId, pdfFileName) => {
+    const jobPoll = setInterval(() => {
+      fetch(`/api/generation-jobs/${jobId}`)
+        .then(res => res.json())
+        .then((data) => {
+          const job = data.job;
+          if (!job) return;
+          if (job.status === 'queued') {
+            updateGeneratorState({ output: `[QUEUE] Waiting for LaTeX worker to start compilation...` });
+            return;
+          }
+          if (job.status === 'running') {
+            updateGeneratorState({
+              output: `[QUEUE] Compiling PDF in worker (attempt ${job.attemptCount || 1}/${job.maxAttempts || 3})...`
+            });
+            return;
+          }
+          clearInterval(jobPoll);
+          if (job.status === 'completed') {
+            updateGeneratorState({
+              isGenerating: false,
+              output: 'Resume package generated successfully.',
+              hasGeneratedResume: true,
+              pdfs: pdfFileName ? [{ name: pdfFileName, time: Date.now() }] : []
+            });
+            setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+            return;
+          }
+          updateGeneratorState({
+            isGenerating: false,
+            output: `Error: ${job.errorMessage || 'Queued compilation failed.'}`
+          });
+        })
+        .catch(() => {
+          clearInterval(jobPoll);
+          updateGeneratorState({
+            isGenerating: false,
+            output: 'Failed to track queued LaTeX compilation.'
+          });
+        });
+    }, 1200);
   };
   
   // Reset UI when JD is cleared
@@ -553,6 +862,18 @@ function GeneratorView({ state, setState }) {
     .then(res => res.json())
     .then(data => {
       clearInterval(pollInterval);
+      if (data.success && data.queued && data.job?.id) {
+        updateGeneratorState({
+          output: data.message || 'Resume drafted. Waiting for worker compilation...',
+          metrics: data.metrics || null,
+          coverLetter: data.coverLetter || '',
+          hasGeneratedResume: true,
+          pdfs: []
+        });
+        watchGenerationJob(data.job.id, data.filename || data.job.pdfFileName);
+        setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+        return;
+      }
       updateGeneratorState({ isGenerating: false });
       if (data.success) {
         updateGeneratorState({
@@ -758,14 +1079,19 @@ function GeneratorView({ state, setState }) {
             <button
               className="primary-button"
               onClick={handleGenerate}
-              disabled={isGenerating || !pdflatexStatus.installed}
-              style={{ opacity: (isGenerating || !pdflatexStatus.installed) ? 0.7 : 1, minWidth: '210px' }}
+              disabled={isGenerating || (requiresLocalPdflatex && !pdflatexStatus.installed)}
+              style={{ opacity: (isGenerating || (requiresLocalPdflatex && !pdflatexStatus.installed)) ? 0.7 : 1, minWidth: '210px' }}
             >
               {isGenerating ? '⏳ Generating...' : '🚀 Auto-Generate Resume'}
             </button>
           </div>
-          {!pdflatexStatus.installed && (
+          {!pdflatexStatus.installed && requiresLocalPdflatex && (
             <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
+          )}
+          {!requiresLocalPdflatex && (
+            <div className="status-banner info">
+              PDF compilation is configured for the dedicated LaTeX worker, so this web app does not need a local `pdflatex` install in production.
+            </div>
           )}
           {/* Live status strip while running */}
           {isGenerating && output && (
@@ -856,15 +1182,14 @@ function GeneratorView({ state, setState }) {
                     style={{padding: '0.4rem 0.8rem', fontSize: '0.875rem', background: '#3b82f6'}}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const docContent = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${coverLetter.replace(/\n/g, '<br/>')}</body></html>`;
-                      const blob = new Blob([docContent], { type: 'application/msword;charset=utf-8' });
+                      const blob = new Blob([coverLetter], { type: 'text/plain;charset=utf-8' });
                       const link = document.createElement('a');
                       link.href = URL.createObjectURL(blob);
-                      link.download = latestPdf ? latestPdf.name.replace('.pdf', '_Cover_Letter.doc') : 'Cover_Letter.doc';
+                      link.download = latestPdf ? latestPdf.name.replace('.pdf', '_Cover_Letter.txt') : 'Cover_Letter.txt';
                       link.click();
                     }}
                   >
-                    Export as Word (.doc)
+                    Export as Text (.txt)
                   </button>
                 )}
                 <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: clOpen ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block', opacity: coverLetter ? 1 : 0.45 }}>▾</span>
@@ -902,16 +1227,21 @@ function GeneratorView({ state, setState }) {
   );
 }
 
-function ProfileSettingsView() {
+function ProfileSettingsView({ appConfig }) {
   const [profileContent, setProfileContent] = useState('');
   const [profileStatus, setProfileStatus] = useState('');
   const [settingsStatus, setSettingsStatus] = useState('');
   const [testStatus, setTestStatus] = useState('');
   const [testResponse, setTestResponse] = useState('');
   const [pdflatexStatus, setPdflatexStatus] = useState({ installed: false, version: '' });
+  const [provider, setProvider] = useState('google');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash-lite');
   const [dailyGoal, setDailyGoal] = useState('5');
+  const [providerKeyConfigured, setProviderKeyConfigured] = useState(false);
+  const [keySource, setKeySource] = useState('none');
+  const [providerEntries, setProviderEntries] = useState(appConfig?.providers || []);
+  const requiresLocalPdflatex = appConfig?.latex?.requiresLocalPdflatex !== false;
   const [models, setModels] = useState([
     'gemini-3.1-flash-lite-preview',
     'gemini-2.5-flash-lite',
@@ -922,6 +1252,15 @@ function ProfileSettingsView() {
   ]);
 
   useEffect(() => {
+    fetch('/api/providers')
+      .then(res => res.json())
+      .then(data => {
+        if (data.providers?.length) {
+          setProviderEntries(data.providers);
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/data/profile.md')
       .then(res => res.json())
       .then(data => setProfileContent(data.content || ''))
@@ -931,10 +1270,14 @@ function ProfileSettingsView() {
       .then(res => res.json())
       .then(data => {
         if (data.settings) {
-          setApiKey(data.settings.geminiApiKey || '');
-          setModel(data.settings.geminiModel || 'gemini-2.5-flash-lite');
+          setProvider(data.settings.provider || 'google');
+          setApiKey('');
+          setModel(data.settings.selectedModel || data.settings.geminiModel || 'gemini-2.5-flash-lite');
           setDailyGoal(String(data.settings.dailyApplicationGoal || 5));
+          setProviderKeyConfigured(!!data.settings.providerKeyConfigured);
+          setKeySource(data.settings.keySource || 'none');
         }
+        if (data.providers?.length) setProviderEntries(data.providers);
         if (data.models?.length) setModels(data.models);
       })
       .catch(console.error);
@@ -946,6 +1289,26 @@ function ProfileSettingsView() {
       })
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/models?provider=${provider}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.models?.length) {
+          setModels(data.models);
+          if (!data.models.includes(model)) {
+            setModel(data.models[0]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [provider]);
+
+  useEffect(() => {
+    const activeProvider = providerEntries.find((item) => item.id === provider);
+    setProviderKeyConfigured(!!activeProvider?.configured);
+    setKeySource(activeProvider?.keySource || 'none');
+  }, [provider, providerEntries]);
 
   const saveProfile = (newMd) => {
     setProfileStatus('Saving profile...');
@@ -984,14 +1347,24 @@ function ProfileSettingsView() {
     fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ geminiApiKey: apiKey, geminiModel: model, dailyApplicationGoal: dailyGoal })
+      body: JSON.stringify({
+        provider,
+        providerApiKey: apiKey,
+        selectedModel: model,
+        dailyApplicationGoal: dailyGoal
+      })
     })
       .then(res => res.json())
       .then(data => {
         if (data.success) {
           setSettingsStatus('AI settings saved.');
-          if (data.settings?.geminiModel) setModel(data.settings.geminiModel);
+          if (data.settings?.provider) setProvider(data.settings.provider);
+          if (data.settings?.selectedModel) setModel(data.settings.selectedModel);
+          if (data.providers?.length) setProviderEntries(data.providers);
           if (data.models?.length) setModels(data.models);
+          setProviderKeyConfigured(!!data.settings?.providerKeyConfigured);
+          setKeySource(data.settings?.keySource || 'none');
+          setApiKey('');
           setTimeout(() => setSettingsStatus(''), 2000);
         } else {
           setSettingsStatus('Failed to save AI settings.');
@@ -1006,12 +1379,16 @@ function ProfileSettingsView() {
     fetch('/api/test-llm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ geminiApiKey: apiKey, geminiModel: model })
+      body: JSON.stringify({
+        provider,
+        providerApiKey: apiKey,
+        selectedModel: model
+      })
     })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || 'LLM test failed.');
-        setTestStatus(`Connected successfully with ${data.model}.`);
+        setTestStatus(`Connected successfully with ${data.provider} / ${data.model}.`);
         setTestResponse(data.response || '');
       })
       .catch((error) => {
@@ -1040,24 +1417,40 @@ function ProfileSettingsView() {
           {settingsStatus && <span style={{color: 'var(--text-secondary)'}}>{settingsStatus}</span>}
         </div>
         <p style={{color: 'var(--text-secondary)', marginTop: 0}}>
-          Save your Gemini API key locally, choose the model used by generation and highlight flows, and test the connection with a sample hello-world request.
+          Choose your preferred provider, securely save an optional per-user API key, and test the model used by generation and highlight flows.
         </p>
 
         <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-          <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
+          <LatexInstallHelp pdflatexStatus={pdflatexStatus} requiresLocalPdflatex={requiresLocalPdflatex} />
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
-            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini API Key</label>
+            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Provider</label>
+            <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+              {(appConfig?.providers || []).map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
+            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Provider API Key</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Paste your Google AI Studio API key"
+              placeholder="Leave blank to keep the current key or use a server-managed key"
             />
+            <div style={{color: 'var(--text-secondary)', fontSize: '0.8rem'}}>
+              {providerKeyConfigured
+                ? (keySource === 'server'
+                    ? 'This provider is currently using a server-managed key.'
+                    : 'A per-user key is already stored securely. Enter a new key only if you want to replace it.')
+                : 'No key is stored yet for this provider.'}
+            </div>
           </div>
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
-            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Gemini Model</label>
+            <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Selected Model</label>
             <select value={model} onChange={(e) => setModel(e.target.value)}>
               {models.map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -1096,7 +1489,7 @@ function ProfileSettingsView() {
           )}
 
           <div className="surface-block" style={{padding: '1rem'}}>
-            <div style={{fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>Included models</div>
+            <div style={{fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>Available models</div>
             <div style={{display: 'flex', flexWrap: 'wrap', gap: '0.5rem'}}>
               {models.map((item) => (
                 <button
@@ -1224,7 +1617,7 @@ function TemplatesView({ type = 'wireframes' }) {
   const [compileStatus, setCompileStatus] = useState('');
   const [compileError, setCompileError] = useState('');
   const [lastWorkingContent, setLastWorkingContent] = useState('');
-  const [renderTimestamp, setRenderTimestamp] = useState(Date.now());
+  const [renderTimestamp, setRenderTimestamp] = useState(0);
 
   const loadTemplates = () => {
     fetch(`/api/templates/${type}`)
@@ -1241,9 +1634,6 @@ function TemplatesView({ type = 'wireframes' }) {
   };
 
   useEffect(() => {
-    setFiles([]);
-    setActiveFile('');
-    setContent('');
     loadTemplates();
   }, [type]);
 
@@ -1444,7 +1834,7 @@ function TemplatesView({ type = 'wireframes' }) {
   );
 }
 
-function HistoryView() {
+function HistoryView({ appConfig }) {
   const [history, setHistory] = useState([]);
   const [activeItem, setActiveItem] = useState(null);
   const [activeSubTab, setActiveSubTab] = useState('preview'); // 'preview', 'editor', 'jd', 'coverLetter'
@@ -1452,6 +1842,7 @@ function HistoryView() {
   const [compileStatus, setCompileStatus] = useState('');
   const [compileError, setCompileError] = useState('');
   const [lastWorkingTexContent, setLastWorkingTexContent] = useState('');
+  const latexConfig = appConfig?.latex || { mode: 'inline' };
 
   // Fetch history list
   useEffect(() => {
@@ -1494,6 +1885,42 @@ function HistoryView() {
           fetch(`/api/compile/${activeItem.company}.tex`, { method: 'POST' })
             .then(res => res.json())
             .then(compData => {
+               if (compData.success && compData.queued && compData.job?.id) {
+                 setCompileStatus('Queued for worker...');
+                 const jobPoll = setInterval(() => {
+                   fetch(`/api/generation-jobs/${compData.job.id}`)
+                     .then(res => res.json())
+                     .then((jobData) => {
+                       const job = jobData.job;
+                       if (!job) return;
+                       if (job.status === 'queued') {
+                         setCompileStatus('Queued for worker...');
+                         return;
+                       }
+                       if (job.status === 'running') {
+                         setCompileStatus(`Worker compiling (${job.attemptCount || 1}/${job.maxAttempts || 3})...`);
+                         return;
+                       }
+                       clearInterval(jobPoll);
+                       if (job.status === 'completed') {
+                         setCompileStatus('Success!');
+                         setCompileError('');
+                         setLastWorkingTexContent(texContent);
+                         setTimeout(() => setCompileStatus(''), 2000);
+                         setActiveItem({ ...activeItem, timestamp: Date.now() });
+                         return;
+                       }
+                       setCompileStatus('Error Compiling');
+                       setCompileError(job.errorMessage || 'Failed to compile PDF.');
+                     })
+                     .catch(() => {
+                       clearInterval(jobPoll);
+                       setCompileStatus('Error Compiling');
+                       setCompileError('Failed to track worker compilation.');
+                     });
+                 }, 1200);
+                 return;
+               }
                if (compData.success) {
                  setCompileStatus('Success!');
                  setCompileError('');
@@ -1579,6 +2006,11 @@ function HistoryView() {
            </div>
         ) : (
 	          <>
+              {latexConfig.mode === 'worker' && (
+                <div className="status-banner info" style={{margin: '0 0 1rem 0'}}>
+                  Recompiles are queued to the dedicated LaTeX worker in production mode.
+                </div>
+              )}
 	            {compileError && (
 	              <div className="status-banner warning" style={{margin: '0 0 1rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'}}>
 	                <span style={{flex: '1 1 320px'}}>{compileError}</span>
@@ -1876,7 +2308,8 @@ function OpportunitiesView() {
   };
 
   useEffect(() => {
-    loadOpportunities(false);
+    const timer = window.setTimeout(() => loadOpportunities(false), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const uniqueSources = [...new Map(sources.map((source) => [source.sourceId, source])).values()];

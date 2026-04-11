@@ -1,0 +1,12 @@
+.git
+.DS_Store
+node_modules
+resume-ui/node_modules
+resume-ui/dist
+Runtime_Data
+Build_Logs
+PDFs
+Tex_Files
+Cover_Letters
+resume-ui/.env.local
+resume-ui/.env

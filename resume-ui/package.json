@@ -7,11 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "start": "node ./server/index.mjs",
+    "start:worker": "node ./server/latex-worker.mjs",
     "preview": "vite preview",
     "refresh-opportunities": "node ./scripts/refresh-opportunities.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@supabase/supabase-js": "^2.103.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

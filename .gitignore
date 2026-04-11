@@ -12,3 +12,6 @@ Tex_Files/*.aux
 Tex_Files/*.log
 Tex_Files/*.out
 Build_Logs/*
+Runtime_Data/*
+resume-ui/applications.json
+resume-ui/opportunities-cache.json
