@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { DataFormDispatcher, ProfileManager } from './DataForms';
-import { buildAuthedApiUrl, clearStoredSession, getBrowserSupabaseClient, setStoredSession } from './auth';
+import {
+  buildAuthedApiUrl,
+  clearStoredSession,
+  getBrowserSupabaseClient,
+  installApiFetchInterceptor,
+  setStoredSession
+} from './auth';
 import './index.css';
 
 const setupMonaco = (monaco) => {
@@ -30,6 +36,23 @@ function LoadingScreen({ label }) {
         <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           {label || 'Loading workspace...'}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceErrorScreen({ message, onRetry }) {
+  return (
+    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel" style={{ maxWidth: '540px', width: '100%', margin: 0 }}>
+        <div className="soft-pill" style={{ marginBottom: '1rem', alignSelf: 'flex-start' }}>Workspace setup issue</div>
+        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>We couldn&apos;t prepare your account yet</h2>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {message || 'The backend did not finish initializing your workspace. Try again and we’ll retry the bootstrap step.'}
+        </p>
+        <div className="action-row" style={{ justifyContent: 'flex-start', marginTop: '1.25rem', marginBottom: 0 }}>
+          <button className="primary-button" onClick={onRetry}>Retry setup</button>
+        </div>
       </div>
     </div>
   );
@@ -79,54 +102,79 @@ function AuthGate({ supabaseClient }) {
   };
 
   return (
-    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-      <div className="glass-panel" style={{ maxWidth: '520px', width: '100%', margin: 0 }}>
-        <div className="soft-pill" style={{ marginBottom: '1rem', alignSelf: 'flex-start' }}>Secure multi-user mode</div>
-        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>Sign in to your workspace</h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.6 }}>
-          Your resume data, generated artifacts, and provider keys are now scoped per account when Supabase is enabled.
-        </p>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-          <button
-            className={mode === 'signin' ? 'primary-button' : 'secondary-button'}
-            onClick={() => setMode('signin')}
-            style={{ flex: 1 }}
-          >
-            Sign In
-          </button>
-          <button
-            className={mode === 'signup' ? 'primary-button' : 'secondary-button'}
-            onClick={() => setMode('signup')}
-            style={{ flex: 1 }}
-          >
-            Create Account
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-          />
-          <button className="primary-button" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
-          </button>
-        </div>
-
-        {status && (
-          <div className={`status-banner ${status.toLowerCase().includes('success') || status.toLowerCase().includes('confirm') ? 'info' : 'warning'}`} style={{ marginTop: '1rem' }}>
-            {status}
+    <div className="app-container" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel" style={{ maxWidth: '1040px', width: '100%', margin: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 460px)', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
+          <div className="soft-pill" style={{ alignSelf: 'flex-start' }}>Secure multi-user workspace</div>
+          <h1 className="panel-title" style={{ margin: 0, fontSize: '2.4rem', lineHeight: 1.1 }}>Sign in, initialize your account, then step into onboarding.</h1>
+          <p style={{ color: 'var(--text-secondary)', margin: 0, lineHeight: 1.7, maxWidth: '60ch' }}>
+            Your Supabase account is now the front door. After sign-in, the backend provisions your private workspace, creates your database-backed resume documents, and then takes you straight into onboarding if anything still needs to be filled in.
+          </p>
+          <div style={{ display: 'grid', gap: '0.8rem', marginTop: '0.25rem' }}>
+            {[
+              '1. Authenticate with Supabase using email and password.',
+              '2. Initialize your private settings and empty resume documents in the backend.',
+              '3. Continue into onboarding, then unlock the full app.'
+            ].map((step) => (
+              <div key={step} className="surface-block" style={{ padding: '0.9rem 1rem' }}>
+                {step}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+
+        <div className="surface-block" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Account access</div>
+            <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>{mode === 'signin' ? 'Sign in to continue' : 'Create your account'}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.6 }}>
+              Use the same email each time so your generated resumes, tracker history, and profile data stay attached to one workspace.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              className={mode === 'signin' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setMode('signin')}
+              style={{ flex: 1 }}
+            >
+              Sign In
+            </button>
+            <button
+              className={mode === 'signup' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setMode('signup')}
+              style={{ flex: 1 }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            />
+            <button className="primary-button" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Working...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+            </button>
+          </div>
+
+          {status && (
+            <div className={`status-banner ${status.toLowerCase().includes('success') || status.toLowerCase().includes('confirm') ? 'info' : 'warning'}`}>
+              {status}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -138,6 +186,11 @@ function App() {
   const [authState, setAuthState] = useState({
     ready: false,
     user: null
+  });
+  const [workspaceState, setWorkspaceState] = useState({
+    loading: true,
+    error: '',
+    refreshToken: 0
   });
   const [activeTab, setActiveTab] = useState('generator');
   const [onboardingState, setOnboardingState] = useState({
@@ -178,6 +231,7 @@ function App() {
           return;
         }
 
+        installApiFetchInterceptor();
         const client = getBrowserSupabaseClient(data.supabase);
         setSupabaseClient(client);
 
@@ -213,24 +267,43 @@ function App() {
   useEffect(() => {
     const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authState.user);
     if (!canLoadWorkspace) return;
+    let cancelled = false;
+    const endpoint = appConfig.authEnabled ? '/api/workspace-bootstrap' : '/api/onboarding-status';
+    const requestInit = appConfig.authEnabled ? { method: 'POST' } : undefined;
 
-    fetch('/api/onboarding-status')
+    setWorkspaceState((prev) => ({ ...prev, loading: true, error: '' }));
+    setOnboardingState((prev) => ({ ...prev, loading: true }));
+
+    fetch(endpoint, requestInit)
       .then(res => res.json())
       .then(data => {
+        if (cancelled) return;
+        const onboardingPayload = appConfig.authEnabled ? data.onboarding : data;
         setOnboardingState({
           loading: false,
-          needsOnboarding: !!data.needsOnboarding,
-          fileStatuses: data.fileStatuses || [],
-          settings: data.settings || { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
-          models: data.models || [],
-          providers: data.providers || [],
-          pdflatex: data.pdflatex || { installed: false, version: '' }
+          needsOnboarding: !!onboardingPayload?.needsOnboarding,
+          fileStatuses: onboardingPayload?.fileStatuses || [],
+          settings: onboardingPayload?.settings || { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
+          models: onboardingPayload?.models || [],
+          providers: onboardingPayload?.providers || [],
+          pdflatex: onboardingPayload?.pdflatex || { installed: false, version: '' }
         });
+        setWorkspaceState((prev) => ({ ...prev, loading: false, error: '' }));
       })
-      .catch(() => {
+      .catch((error) => {
+        if (cancelled) return;
         setOnboardingState((prev) => ({ ...prev, loading: false }));
+        setWorkspaceState((prev) => ({
+          ...prev,
+          loading: false,
+          error: error?.message || 'Failed to prepare your workspace.'
+        }));
       });
-  }, [appConfig, authState.ready, authState.user]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appConfig, authState.ready, authState.user, workspaceState.refreshToken]);
 
   if (!appConfig || !authState.ready) {
     return <LoadingScreen label="Loading production-ready workspace..." />;
@@ -238,6 +311,19 @@ function App() {
 
   if (appConfig.authEnabled && !authState.user) {
     return <AuthGate supabaseClient={supabaseClient} />;
+  }
+
+  if (workspaceState.loading) {
+    return <LoadingScreen label="Preparing your workspace and checking onboarding..." />;
+  }
+
+  if (workspaceState.error) {
+    return (
+      <WorkspaceErrorScreen
+        message={workspaceState.error}
+        onRetry={() => setWorkspaceState((prev) => ({ ...prev, refreshToken: prev.refreshToken + 1 }))}
+      />
+    );
   }
 
   const handleSignOut = async () => {

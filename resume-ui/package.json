@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run sync-shared-assets && vite build",
     "lint": "eslint .",
+    "sync-shared-assets": "node ./scripts/sync-shared-assets.mjs",
     "start": "node ./server/index.mjs",
     "start:worker": "node ./server/latex-worker.mjs",
     "preview": "vite preview",

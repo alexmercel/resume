@@ -103,6 +103,33 @@ function buildTempTexBlobPath(userId, fileName) {
   return `users/${userId || 'anonymous'}/temp/${Date.now()}-${token}-${safeName}`;
 }
 
+function shouldUseEphemeralRuntime(env) {
+  return Boolean(env?.VERCEL);
+}
+
+function getRuntimeRoot(basePath, env) {
+  if (shouldUseEphemeralRuntime(env)) {
+    return path.join(os.tmpdir(), 'resume-ui-runtime');
+  }
+  return basePath;
+}
+
+function resolveSharedAssetsBasePath(basePath) {
+  const candidates = [
+    basePath,
+    path.join(basePath, 'shared-assets'),
+    path.resolve(process.cwd(), 'shared-assets')
+  ];
+
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(path.join(candidate, 'Templates')) && fs.existsSync(path.join(candidate, '.agent'));
+    } catch {
+      return false;
+    }
+  }) || basePath;
+}
+
 function streamWebToNode(stream, res) {
   if (!stream) {
     res.statusCode = 404;
@@ -118,34 +145,42 @@ function extractMissingGenerationHistoryColumn(error, activeColumns = []) {
   return [...activeColumns, ...optionalColumns].find((column) => message.includes(column)) || '';
 }
 
-export function getPaths(basePath, userId = null) {
-  const appDir = path.join(basePath, 'resume-ui');
-  const legacyRoot = basePath;
+export function getPaths(basePath, userId = null, env = {}) {
+  const runtimeRoot = getRuntimeRoot(basePath, env);
+  const assetBasePath = resolveSharedAssetsBasePath(basePath);
+  const appDir = shouldUseEphemeralRuntime(env)
+    ? runtimeRoot
+    : path.join(basePath, 'resume-ui');
+  const legacyRoot = shouldUseEphemeralRuntime(env)
+    ? runtimeRoot
+    : basePath;
   const workspaceRoot = userId
-    ? path.join(basePath, 'Runtime_Data', 'users', userId)
+    ? path.join(runtimeRoot, 'Runtime_Data', 'users', userId)
     : legacyRoot;
 
-  const buildLogsDir = userId ? path.join(workspaceRoot, 'Build_Logs') : path.join(basePath, 'Build_Logs');
+  const buildLogsDir = userId ? path.join(workspaceRoot, 'Build_Logs') : path.join(legacyRoot, 'Build_Logs');
   const opportunitiesCachePath = path.join(appDir, 'opportunities-cache.json');
 
   return {
     basePath,
+    assetBasePath,
     appDir,
+    runtimeRoot,
     workspaceRoot,
     dataDir: path.join(workspaceRoot, 'Data'),
     pdfDir: path.join(workspaceRoot, 'PDFs'),
     texDir: path.join(workspaceRoot, 'Tex_Files'),
     coverLettersDir: path.join(workspaceRoot, 'Cover_Letters'),
     buildLogsDir,
-    wireframesDir: path.join(basePath, 'Templates', 'Wireframes'),
-    genericTemplatesDir: path.join(basePath, 'Templates', 'Generic'),
+    wireframesDir: path.join(assetBasePath, 'Templates', 'Wireframes'),
+    genericTemplatesDir: path.join(assetBasePath, 'Templates', 'Generic'),
     settingsPath: path.join(appDir, 'user-settings.json'),
     applicationsPath: path.join(appDir, 'applications.json'),
     opportunitiesCachePath,
-    legacyDataDir: path.join(basePath, 'Data'),
-    legacyPdfDir: path.join(basePath, 'PDFs'),
-    legacyTexDir: path.join(basePath, 'Tex_Files'),
-    legacyCoverLettersDir: path.join(basePath, 'Cover_Letters')
+    legacyDataDir: path.join(legacyRoot, 'Data'),
+    legacyPdfDir: path.join(legacyRoot, 'PDFs'),
+    legacyTexDir: path.join(legacyRoot, 'Tex_Files'),
+    legacyCoverLettersDir: path.join(legacyRoot, 'Cover_Letters')
   };
 }
 
@@ -176,6 +211,14 @@ function documentHasMeaningfulContent(fileName, content) {
   const normalizedContent = String(content || '').trim();
   if (!normalizedContent) return false;
   return normalizedContent !== String(getDefaultUserDocumentContent(fileName) || '').trim();
+}
+
+function getTemplatesRoot(basePath) {
+  return path.join(resolveSharedAssetsBasePath(basePath), 'Templates');
+}
+
+function getAgentRoot(basePath) {
+  return path.join(resolveSharedAssetsBasePath(basePath), '.agent');
 }
 
 function resolveSafePath(rootDir, rawName) {
@@ -744,6 +787,34 @@ async function ensureUserDocumentsSeeded(env, userId) {
   if (error) throw new Error(error.message || 'Failed to initialize user documents.');
 }
 
+async function ensureUserSettingsSeeded(env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  const defaultProvider = getProvider('google').id;
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_settings')
+    .upsert({
+      user_id: userId,
+      preferred_provider: defaultProvider,
+      preferred_model: getDefaultModelForProvider(defaultProvider),
+      daily_application_goal: 5,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+  if (error) throw new Error(error.message || 'Failed to initialize user settings.');
+}
+
+async function initializeUserWorkspace(paths, env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  await Promise.all([
+    ensureUserDocumentsSeeded(env, userId),
+    ensureUserSettingsSeeded(env, userId)
+  ]);
+  ensureWorkspaceDirs(paths);
+}
+
 async function listUserApplications(paths, env, userId) {
   if (!userId || !isSupabaseEnabled(env)) {
     return readLegacyApplications(paths);
@@ -1282,8 +1353,8 @@ function getPlatformInfo() {
 
 function getTemplatePackages(basePath) {
   const templateDirs = [
-    path.join(basePath, 'Templates', 'Wireframes'),
-    path.join(basePath, 'Templates', 'Generic')
+    path.join(getTemplatesRoot(basePath), 'Wireframes'),
+    path.join(getTemplatesRoot(basePath), 'Generic')
   ];
   const packages = new Set();
 
@@ -1717,7 +1788,7 @@ async function requireAuthenticatedContext(req, res, basePath) {
   return {
     env,
     authContext,
-    paths: getPaths(basePath, authContext.userId)
+    paths: getPaths(basePath, authContext.userId, env)
   };
 }
 
@@ -1769,6 +1840,45 @@ async function handleSettingsGet(res, basePath, context) {
     modelDetails: models,
     providers: providerConfigurations
   });
+}
+
+async function buildOnboardingPayload(basePath, context) {
+  const usesDatabaseDocuments = Boolean(context.authContext.userId && isSupabaseEnabled(context.env));
+  if (usesDatabaseDocuments) {
+    await initializeUserWorkspace(context.paths, context.env, context.authContext.userId);
+  }
+
+  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
+  const providerConfigurations = await listProviderConfigurations(
+    context.paths,
+    context.env,
+    context.authContext.userId
+  );
+  const models = await getModelsForProvider(context.paths, context.env, context.authContext.userId, settings.provider);
+  const pdflatex = await checkPdflatexInstalled();
+  const platform = getPlatformInfo();
+  const packages = getTemplatePackages(basePath);
+
+  const fileStatuses = await Promise.all(REQUIRED_DATA_FILES.map(async (fileName) => {
+    const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
+    return {
+      fileName,
+      exists: usesDatabaseDocuments ? true : Boolean(content),
+      hasContent: documentHasMeaningfulContent(fileName, content)
+    };
+  }));
+
+  return {
+    needsOnboarding: fileStatuses.some((file) => !file.hasContent),
+    fileStatuses,
+    settings,
+    models: models.map((item) => item.id),
+    modelDetails: models,
+    providers: providerConfigurations,
+    pdflatex,
+    platform,
+    packages
+  };
 }
 
 async function handleSettingsPost(req, res, basePath, context) {
@@ -1871,40 +1981,27 @@ async function handleSystemCheck(res, basePath) {
 }
 
 async function handleOnboardingStatus(res, basePath, context) {
-  const usesDatabaseDocuments = Boolean(context.authContext.userId && isSupabaseEnabled(context.env));
-  if (usesDatabaseDocuments) {
-    await ensureUserDocumentsSeeded(context.env, context.authContext.userId);
+  sendJson(res, await buildOnboardingPayload(basePath, context));
+}
+
+async function handleWorkspaceBootstrap(res, basePath, context) {
+  if (context.authContext.userId && isSupabaseEnabled(context.env)) {
+    await initializeUserWorkspace(context.paths, context.env, context.authContext.userId);
   }
-  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
-  const providerConfigurations = await listProviderConfigurations(
-    context.paths,
-    context.env,
-    context.authContext.userId
-  );
-  const models = await getModelsForProvider(context.paths, context.env, context.authContext.userId, settings.provider);
-  const pdflatex = await checkPdflatexInstalled();
-  const platform = getPlatformInfo();
-  const packages = getTemplatePackages(basePath);
 
-  const fileStatuses = await Promise.all(REQUIRED_DATA_FILES.map(async (fileName) => {
-    const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
-    return {
-      fileName,
-      exists: usesDatabaseDocuments ? true : Boolean(content),
-      hasContent: documentHasMeaningfulContent(fileName, content)
-    };
-  }));
-
+  const onboarding = await buildOnboardingPayload(basePath, context);
   sendJson(res, {
-    needsOnboarding: fileStatuses.some((file) => !file.hasContent),
-    fileStatuses,
-    settings,
-    models: models.map((item) => item.id),
-    modelDetails: models,
-    providers: providerConfigurations,
-    pdflatex,
-    platform,
-    packages
+    success: true,
+    initialized: true,
+    nextStep: onboarding.needsOnboarding ? 'onboarding' : 'app',
+    onboarding,
+    user: context.authContext.user
+      ? {
+          id: context.authContext.user.id,
+          email: context.authContext.user.email || '',
+          userMetadata: context.authContext.user.user_metadata || {}
+        }
+      : null
   });
 }
 
@@ -2152,7 +2249,7 @@ async function handleTexFile(req, res, basePath, context) {
 async function handleTemplatesGet(req, res, basePath) {
   const type = req.url.split('/api/templates/')[1];
   const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(basePath, 'Templates', folder);
+  const templateDir = path.join(getTemplatesRoot(basePath), folder);
   const templates = fs.existsSync(templateDir)
     ? fs.readdirSync(templateDir).filter((file) => file.endsWith('.tex'))
     : [];
@@ -2164,7 +2261,7 @@ async function handleTemplateFile(req, res, basePath) {
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
   const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(basePath, 'Templates', folder);
+  const templateDir = path.join(getTemplatesRoot(basePath), folder);
   const filePath = resolveSafePath(templateDir, fileName);
 
   if (req.method === 'GET') {
@@ -2186,7 +2283,7 @@ async function handleCompileTemplate(req, res, basePath, context) {
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
   const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templatePath = resolveSafePath(path.join(basePath, 'Templates', folder), fileName);
+  const templatePath = resolveSafePath(path.join(getTemplatesRoot(basePath), folder), fileName);
   if (!fs.existsSync(templatePath)) {
     sendJson(res, { success: false, error: 'Template not found' }, 404);
     return;
@@ -2468,14 +2565,15 @@ async function readGenerationInputs(paths, env, userId, template) {
     readDoc('workex.md'),
     readDoc('education.md')
   ]);
-  const ruleText = fs.readFileSync(path.join(paths.basePath, '.agent', 'rules', 'resume-generation-rule.md'), 'utf-8');
+  const agentRoot = getAgentRoot(paths.basePath);
+  const ruleText = fs.readFileSync(path.join(agentRoot, 'rules', 'resume-generation-rule.md'), 'utf-8');
   let clRuleText = '';
   try {
-    clRuleText = fs.readFileSync(path.join(paths.basePath, '.agent', 'rules', 'cover-letter-rule.md'), 'utf-8');
+    clRuleText = fs.readFileSync(path.join(agentRoot, 'rules', 'cover-letter-rule.md'), 'utf-8');
   } catch {
     clRuleText = '';
   }
-  const skillText = fs.readFileSync(path.join(paths.basePath, '.agent', 'skills', 'resume_builder', 'SKILL.md'), 'utf-8');
+  const skillText = fs.readFileSync(path.join(agentRoot, 'skills', 'resume_builder', 'SKILL.md'), 'utf-8');
   const templateText = fs.readFileSync(path.join(paths.wireframesDir, template), 'utf-8');
 
   return {
@@ -3022,6 +3120,11 @@ export function createRequestHandler({ basePath } = {}) {
 
       if (request.url === '/api/onboarding-status' && request.method === 'GET') {
         await handleOnboardingStatus(res, resolvedBasePath, context);
+        return;
+      }
+
+      if (request.url === '/api/workspace-bootstrap' && request.method === 'POST') {
+        await handleWorkspaceBootstrap(res, resolvedBasePath, context);
         return;
       }
 
