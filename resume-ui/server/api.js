@@ -28,6 +28,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
+const DEFAULT_USER_DOCUMENT_CONTENT = {
+  'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
+  'projects.md': '# Projects\n',
+  'workex.md': '# Experience\n',
+  'education.md': '# Education\n',
+  'skills.md': '# Technical Skills\n'
+};
 const generationState = {
   status: 'Idle'
 };
@@ -159,6 +166,16 @@ export function ensureWorkspaceDirs(paths) {
 
 function isAllowedUserDocument(fileName) {
   return REQUIRED_DATA_FILES.includes(String(fileName || '').trim());
+}
+
+function getDefaultUserDocumentContent(fileName) {
+  return DEFAULT_USER_DOCUMENT_CONTENT[fileName] || '';
+}
+
+function documentHasMeaningfulContent(fileName, content) {
+  const normalizedContent = String(content || '').trim();
+  if (!normalizedContent) return false;
+  return normalizedContent !== String(getDefaultUserDocumentContent(fileName) || '').trim();
 }
 
 function resolveSafePath(rootDir, rawName) {
@@ -678,6 +695,7 @@ async function readUserDocument(paths, env, userId, fileName) {
     return '';
   }
 
+  await ensureUserDocumentsSeeded(env, userId);
   const { admin } = await getDbClientsOrThrow(env);
   const { data, error } = await admin
     .from('user_documents')
@@ -688,10 +706,7 @@ async function readUserDocument(paths, env, userId, fileName) {
 
   if (error) throw new Error(error.message || 'Failed to read document.');
   if (data?.content != null) return data.content;
-
-  const fallbackPath = path.join(paths.legacyDataDir, fileName);
-  if (fs.existsSync(fallbackPath)) return fs.readFileSync(fallbackPath, 'utf-8');
-  return '';
+  return getDefaultUserDocumentContent(fileName);
 }
 
 async function writeUserDocument(paths, env, userId, fileName, content) {
@@ -709,6 +724,24 @@ async function writeUserDocument(paths, env, userId, fileName, content) {
     updated_at: new Date().toISOString()
   });
   if (error) throw new Error(error.message || 'Failed to save document.');
+}
+
+async function ensureUserDocumentsSeeded(env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const rows = REQUIRED_DATA_FILES.map((documentKey) => ({
+    user_id: userId,
+    document_key: documentKey,
+    content: getDefaultUserDocumentContent(documentKey),
+    updated_at: new Date().toISOString()
+  }));
+
+  const { error } = await admin
+    .from('user_documents')
+    .upsert(rows, { onConflict: 'user_id,document_key', ignoreDuplicates: true });
+
+  if (error) throw new Error(error.message || 'Failed to initialize user documents.');
 }
 
 async function listUserApplications(paths, env, userId) {
@@ -1838,6 +1871,10 @@ async function handleSystemCheck(res, basePath) {
 }
 
 async function handleOnboardingStatus(res, basePath, context) {
+  const usesDatabaseDocuments = Boolean(context.authContext.userId && isSupabaseEnabled(context.env));
+  if (usesDatabaseDocuments) {
+    await ensureUserDocumentsSeeded(context.env, context.authContext.userId);
+  }
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
   const providerConfigurations = await listProviderConfigurations(
     context.paths,
@@ -1853,8 +1890,8 @@ async function handleOnboardingStatus(res, basePath, context) {
     const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
     return {
       fileName,
-      exists: Boolean(content),
-      hasContent: Boolean(String(content || '').trim())
+      exists: usesDatabaseDocuments ? true : Boolean(content),
+      hasContent: documentHasMeaningfulContent(fileName, content)
     };
   }));
 
@@ -2010,23 +2047,16 @@ RULES:
       .trim()
   );
 
-  const defaults = {
-    'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
-    'projects.md': '# Projects\n',
-    'workex.md': '# Experience\n',
-    'education.md': '# Education\n',
-    'skills.md': '# Technical Skills\n'
-  };
-
   const createdFiles = [];
   for (const fileNameKey of REQUIRED_DATA_FILES) {
-    const nextContent = (parsed[fileNameKey] || defaults[fileNameKey] || '').trim();
-    const finalContent = `${nextContent || defaults[fileNameKey].trim()}\n`;
+    const defaultContent = getDefaultUserDocumentContent(fileNameKey);
+    const nextContent = (parsed[fileNameKey] || defaultContent || '').trim();
+    const finalContent = `${nextContent || defaultContent.trim()}\n`;
     await writeUserDocument(context.paths, context.env, context.authContext.userId, fileNameKey, finalContent);
     createdFiles.push({
       fileName: fileNameKey,
       created: true,
-      hasContent: Boolean(finalContent.trim())
+      hasContent: documentHasMeaningfulContent(fileNameKey, finalContent)
     });
   }
 
@@ -2050,7 +2080,7 @@ async function handleDataFile(req, res, basePath, context) {
   }
   if (req.method === 'GET') {
     const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
-    if (!content) {
+    if (!content && !(context.authContext.userId && isSupabaseEnabled(context.env))) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
