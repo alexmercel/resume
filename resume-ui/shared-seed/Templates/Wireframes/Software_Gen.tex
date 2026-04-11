@@ -1,0 +1,80 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{mathptmx}
+
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+\setlist[itemize]{
+  leftmargin=2.5em,
+  itemsep=2pt,
+  topsep=0pt,
+  partopsep=0pt,
+  parsep=0pt
+}
+
+\pdfgentounicode=1
+
+\begin{document}
+
+\begin{center}
+  {\LARGE \textbf{[Candidate Name]}}\\
+  {\normalsize [Suggested Job Title based on JD]}\\
+  \small
+  \faMapMarker*\ [Location]
+  \quad
+  \faPhone*\ [Phone]
+  \quad
+  \faEnvelope\ \href{mailto:[Email]}{[Email]}
+  \quad
+  \faLinkedin\ \href{[LinkedIn URL]}{[LinkedIn URL]}
+\end{center}
+\vspace{-13pt}
+
+\section*{Education}
+% Format:
+% \textbf{School}, Location \hfill \textbf{Date Range} \\
+% \textit{Degree / Program} \hfill GPA: value \\
+% Coursework: item1, item2, item3
+
+\section*{Work Experience}
+% Format:
+% \textbf{Role} \;|\; \textit{Company} \hfill \textbf{Date Range} \\
+% \begin{itemize}[noitemsep]
+%   \item Bullet with measurable impact.
+% \end{itemize}
+
+\section*{Projects}
+% Format:
+% \textbf{Project Name} \;|\; \textit{Tech Stack} \\
+% \begin{itemize}[noitemsep]
+%   \item Bullet focused on architecture, systems, or impact.
+% \end{itemize}
+
+\section*{Technical Skills}
+% Format:
+% \textbf{Programming:} item1, item2 \\
+% \textbf{Backend \& Frameworks:} item1, item2 \\
+% \textbf{Data \& AI:} item1, item2 \\
+% \textbf{Cloud \& Tools:} item1, item2
+
+\section*{Certifications \& Awards}
+% Optional section. Remove if not needed.
+
+\end{document}

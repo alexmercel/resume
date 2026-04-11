@@ -1,0 +1,78 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{fontawesome5}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{mathptmx}
+
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-12pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+\setlist[itemize]{
+  leftmargin=2.5em,
+  itemsep=2pt,
+  topsep=0pt,
+  partopsep=0pt,
+  parsep=0pt
+}
+
+\pdfgentounicode=1
+
+\begin{document}
+
+\begin{center}
+  {\LARGE \textbf{[Candidate Name]}}\\
+  {\normalsize [Suggested Job Title based on JD]} \\
+  \small
+  \faMapMarker*\ [Location]
+  \quad
+  \faPhone*\ [Phone]
+  \quad
+  \faEnvelope\ \href{mailto:[Email]}{[Email]}
+  \quad
+  \faLinkedin\ \href{[LinkedIn URL]}{[LinkedIn URL]}
+\end{center}
+\vspace{-13pt}
+
+\section*{Education}
+% Analytics-focused degrees and relevant coursework.
+
+\section*{Professional Experience}
+% Format:
+% \textbf{Role} - \textit{Company} \hfill Date Range
+% \begin{itemize}
+%   \item Bullet about analytics, ETL, dashboards, experimentation, or data quality.
+% \end{itemize}
+
+\section*{Projects}
+% Format:
+% \textbf{Project Name}
+% \begin{itemize}
+%   \item Bullet about SQL, BI, analytics, experimentation, ML, or reporting pipelines.
+% \end{itemize}
+
+\section*{Technical Skills}
+% Format:
+% \textbf{Data \& Analytics:} item1, item2 \\
+% \textbf{Salesforce Ecosystem:} item1, item2 \\
+% \textbf{Integration \& APIs:} item1, item2 \\
+% \textbf{Programming:} item1, item2 \\
+% \textbf{Platforms \& Tools:} item1, item2
+
+\section*{Certification}
+% Optional single-line certifications section.
+
+\end{document}
