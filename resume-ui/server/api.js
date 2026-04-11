@@ -2924,161 +2924,169 @@ export function createRequestHandler({ basePath } = {}) {
   return async function handleRequest(req, res, next = null) {
     try {
       const parsedUrl = parseRequestUrl(req);
+      for (const key of [...parsedUrl.searchParams.keys()]) {
+        if (key.toLowerCase().includes('path')) {
+          parsedUrl.searchParams.delete(key);
+        }
+      }
       const normalizedPathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
       const normalizedUrl = `${normalizedPathname}${parsedUrl.search || ''}`;
-      req.url = normalizedUrl;
+      const request = Object.create(req);
+      request.url = normalizedUrl;
+      request.method = req.method;
+      request.headers = req.headers;
 
-      if (!req.url?.startsWith('/api/')) {
+      if (!request.url?.startsWith('/api/')) {
         if (typeof next === 'function') next();
         return;
       }
 
-      if (req.url === '/api/status' && req.method === 'GET') {
+      if (request.url === '/api/status' && request.method === 'GET') {
         await handleStatusRoute(res);
         return;
       }
 
-      if (req.url === '/api/app-config' && req.method === 'GET') {
+      if (request.url === '/api/app-config' && request.method === 'GET') {
         await handleAppConfigRoute(res, resolvedBasePath);
         return;
       }
 
-      if (req.url === '/api/session' && req.method === 'GET') {
-        await handleSessionRoute(req, res, resolvedBasePath);
+      if (request.url === '/api/session' && request.method === 'GET') {
+        await handleSessionRoute(request, res, resolvedBasePath);
         return;
       }
 
-      const context = await requireAuthenticatedContext(req, res, resolvedBasePath);
+      const context = await requireAuthenticatedContext(request, res, resolvedBasePath);
       if (!context) return;
       ensureOpportunitiesCacheDir(context.paths.opportunitiesCachePath);
 
-      if (req.url === '/api/settings' && req.method === 'GET') {
+      if (request.url === '/api/settings' && request.method === 'GET') {
         await handleSettingsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/settings' && req.method === 'POST') {
-        await handleSettingsPost(req, res, resolvedBasePath, context);
+      if (request.url === '/api/settings' && request.method === 'POST') {
+        await handleSettingsPost(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/providers' && req.method === 'GET') {
+      if (request.url === '/api/providers' && request.method === 'GET') {
         await handleProvidersGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/models') && req.method === 'GET') {
-        await handleModelsGet(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/models') && request.method === 'GET') {
+        await handleModelsGet(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/test-llm' && req.method === 'POST') {
-        await handleTestLlm(req, res, resolvedBasePath, context);
+      if (request.url === '/api/test-llm' && request.method === 'POST') {
+        await handleTestLlm(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/system-check' && req.method === 'GET') {
+      if (request.url === '/api/system-check' && request.method === 'GET') {
         await handleSystemCheck(res, resolvedBasePath);
         return;
       }
 
-      if (req.url === '/api/onboarding-status' && req.method === 'GET') {
+      if (request.url === '/api/onboarding-status' && request.method === 'GET') {
         await handleOnboardingStatus(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/latex-setup-check' && req.method === 'POST') {
-        await handleLatexSetupCheck(req, res, resolvedBasePath);
+      if (request.url === '/api/latex-setup-check' && request.method === 'POST') {
+        await handleLatexSetupCheck(request, res, resolvedBasePath);
         return;
       }
 
-      if (req.url === '/api/onboarding-import' && req.method === 'POST') {
-        await handleOnboardingImport(req, res, resolvedBasePath, context);
+      if (request.url === '/api/onboarding-import' && request.method === 'POST') {
+        await handleOnboardingImport(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/data/')) {
-        await handleDataFile(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/data/')) {
+        await handleDataFile(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/applications' && req.method === 'GET') {
+      if (request.url === '/api/applications' && request.method === 'GET') {
         await handleApplicationsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/opportunities') && req.method === 'GET') {
-        await handleOpportunities(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/opportunities') && request.method === 'GET') {
+        await handleOpportunities(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/history' && req.method === 'GET') {
+      if (request.url === '/api/history' && request.method === 'GET') {
         await handleHistoryGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/generation-jobs/') && req.method === 'GET') {
-        await handleGenerationJobGet(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/generation-jobs/') && request.method === 'GET') {
+        await handleGenerationJobGet(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/cover-letter/') && req.method === 'GET') {
-        await handleCoverLetterDownload(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/cover-letter/') && request.method === 'GET') {
+        await handleCoverLetterDownload(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/tex/')) {
-        await handleTexFile(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/tex/')) {
+        await handleTexFile(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/templates/') && req.method === 'GET') {
-        await handleTemplatesGet(req, res, resolvedBasePath);
+      if (request.url.startsWith('/api/templates/') && request.method === 'GET') {
+        await handleTemplatesGet(request, res, resolvedBasePath);
         return;
       }
 
-      if (req.url.startsWith('/api/template/')) {
-        await handleTemplateFile(req, res, resolvedBasePath);
+      if (request.url.startsWith('/api/template/')) {
+        await handleTemplateFile(request, res, resolvedBasePath);
         return;
       }
 
-      if (req.url.startsWith('/api/compile-template/') && req.method === 'POST') {
-        await handleCompileTemplate(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/compile-template/') && request.method === 'POST') {
+        await handleCompileTemplate(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/template-pdf/') && req.method === 'GET') {
-        await handleTemplatePdf(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/template-pdf/') && request.method === 'GET') {
+        await handleTemplatePdf(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/compile/') && req.method === 'POST') {
-        await handleCompileSavedTex(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/compile/') && request.method === 'POST') {
+        await handleCompileSavedTex(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/outputs' && req.method === 'GET') {
+      if (request.url === '/api/outputs' && request.method === 'GET') {
         await handleOutputsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/output/') && req.method === 'GET') {
-        await handleOutputDownload(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/output/') && request.method === 'GET') {
+        await handleOutputDownload(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/highlight' && req.method === 'POST') {
-        await handleHighlight(req, res, resolvedBasePath, context);
+      if (request.url === '/api/highlight' && request.method === 'POST') {
+        await handleHighlight(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/humanize-cover-letter' && req.method === 'POST') {
-        await handleHumanizeCoverLetter(req, res, resolvedBasePath, context);
+      if (request.url === '/api/humanize-cover-letter' && request.method === 'POST') {
+        await handleHumanizeCoverLetter(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/generate' && req.method === 'POST') {
-        await handleGenerate(req, res, resolvedBasePath, context);
+      if (request.url === '/api/generate' && request.method === 'POST') {
+        await handleGenerate(request, res, resolvedBasePath, context);
         return;
       }
 

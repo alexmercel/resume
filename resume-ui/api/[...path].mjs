@@ -14,14 +14,18 @@ export const config = {
 
 export default async function vercelApiHandler(req, res) {
   const currentUrl = new URL(req.url || '/', 'http://localhost');
-  const queryPath = currentUrl.searchParams.get('path') || currentUrl.searchParams.get('__pathname') || '';
+  const pathLikeEntry = [...currentUrl.searchParams.entries()].find(([key]) => key.toLowerCase().includes('path'));
+  const queryPath = pathLikeEntry?.[1] || '';
   const rawPath = Array.isArray(req.query?.path)
     ? req.query.path.join('/')
     : String(req.query?.path || queryPath || '').trim();
 
   if (rawPath) {
-    currentUrl.searchParams.delete('path');
-    currentUrl.searchParams.delete('__pathname');
+    for (const key of [...currentUrl.searchParams.keys()]) {
+      if (key.toLowerCase().includes('path')) {
+        currentUrl.searchParams.delete(key);
+      }
+    }
     const normalizedPath = rawPath.replace(/^\/+/, '');
     const resolvedPath = normalizedPath.startsWith('api/')
       ? `/${normalizedPath}`
