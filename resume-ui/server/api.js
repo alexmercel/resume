@@ -1705,7 +1705,7 @@ async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
   const remoteConfig = getRemoteLatexConfig(env);
   const tempBlobPath = buildTempTexBlobPath(userId, fileName);
   const tempBlob = await putBlob(tempBlobPath, String(content || ''), {
-    access: 'public',
+    access: 'private',
     allowOverwrite: true,
     addRandomSuffix: false,
     contentType: 'application/x-tex; charset=utf-8'
@@ -1713,7 +1713,7 @@ async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
 
   try {
     const compileUrl = new URL('/compile', `${remoteConfig.baseUrl}/`);
-    compileUrl.searchParams.set('url', tempBlob.url);
+    compileUrl.searchParams.set('url', tempBlob.downloadUrl || tempBlob.url);
     compileUrl.searchParams.set('download', path.basename(fileName).replace(/\.tex$/i, '.pdf'));
     if (remoteConfig.command) {
       compileUrl.searchParams.set('command', remoteConfig.command);
