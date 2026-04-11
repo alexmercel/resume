@@ -2923,6 +2923,11 @@ export function createRequestHandler({ basePath } = {}) {
   const resolvedBasePath = basePath || path.resolve(__dirname, '..', '..');
   return async function handleRequest(req, res, next = null) {
     try {
+      const parsedUrl = parseRequestUrl(req);
+      const normalizedPathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
+      const normalizedUrl = `${normalizedPathname}${parsedUrl.search || ''}`;
+      req.url = normalizedUrl;
+
       if (!req.url?.startsWith('/api/')) {
         if (typeof next === 'function') next();
         return;
