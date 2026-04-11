@@ -215,6 +215,7 @@ function App() {
     clOpen: false,
     hasGeneratedResume: false
   });
+  const authUserId = authState.user?.id || '';
 
   useEffect(() => {
     let cancelled = false;
@@ -265,7 +266,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authState.user);
+    const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authUserId);
     if (!canLoadWorkspace) return;
     let cancelled = false;
     const endpoint = appConfig.authEnabled ? '/api/workspace-bootstrap' : '/api/onboarding-status';
@@ -303,7 +304,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [appConfig, authState.ready, authState.user, workspaceState.refreshToken]);
+  }, [appConfig, authState.ready, authUserId, workspaceState.refreshToken]);
 
   if (!appConfig || !authState.ready) {
     return <LoadingScreen label="Loading production-ready workspace..." />;
