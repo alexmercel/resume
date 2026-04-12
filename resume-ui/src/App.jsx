@@ -982,7 +982,7 @@ function GeneratorView({ state, setState, appConfig }) {
       clearInterval(pollInterval);
       updateGeneratorState({
         isGenerating: false,
-        output: 'Failed to connect to local API.'
+        output: 'Failed to connect to the API.'
       });
     });
   };

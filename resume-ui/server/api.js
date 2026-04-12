@@ -3338,6 +3338,7 @@ The cover letter must:
 export function createRequestHandler({ basePath } = {}) {
   const resolvedBasePath = basePath || path.resolve(__dirname, '..', '..');
   return async function handleRequest(req, res, next = null) {
+    let request = req;
     try {
       const parsedUrl = parseRequestUrl(req);
       for (const key of [...parsedUrl.searchParams.keys()]) {
@@ -3347,7 +3348,7 @@ export function createRequestHandler({ basePath } = {}) {
       }
       const normalizedPathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
       const normalizedUrl = `${normalizedPathname}${parsedUrl.search || ''}`;
-      const request = Object.create(req);
+      request = Object.create(req);
       request.url = normalizedUrl;
       request.method = req.method;
       request.headers = req.headers;
