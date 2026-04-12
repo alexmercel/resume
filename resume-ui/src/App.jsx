@@ -204,8 +204,8 @@ function App() {
   });
   const [generatorState, setGeneratorState] = useState({
     jd: '',
-    template: 'Software_Gen.tex',
-    templatesList: ['Software_Gen.tex', 'Hardware_Gen.tex', 'DA_Gen.tex'],
+    template: 'template1.tex',
+    templatesList: ['template1.tex'],
     output: null,
     pdfs: [],
     metrics: null,

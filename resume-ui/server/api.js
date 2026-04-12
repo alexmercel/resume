@@ -1635,7 +1635,9 @@ Rules:
 2. Do NOT invent experience, projects, or personal data.
 3. Do NOT change candidate facts.
 4. Keep the same overall template structure.
-5. Return ONLY raw LaTeX. No markdown fences or explanation.
+5. Do NOT add, remove, or rename any \\usepackage lines.
+6. Do NOT introduce any new LaTeX library, plugin, package, document class, or macro dependency that is not already present in the document.
+7. Return ONLY raw LaTeX. No markdown fences or explanation.
 
 Compiler output:
 ${extractLatexErrorSnippet(compilerOutput)}
@@ -2999,6 +3001,11 @@ The Optimized User Data contains markdown bold tags like \`**keyword**\`.
 When injecting these points into the LaTeX document, convert EVERY markdown bold block into native LaTeX bolding: \`\\textbf{keyword}\`.
 STRICT SKILLS FORMATTING: Individual skills MUST NEVER be bolded in the Skills section.
 STRICT CONTENT LOCK: Do NOT rewrite, paraphrase, optimize, or invent any resume bullet text. Use the candidate content exactly as provided.
+STRICT LATEX DEPENDENCY LOCK:
+- Do NOT add, remove, or rename any \\usepackage lines.
+- Do NOT introduce any new LaTeX package, library, plugin, font package, icon package, document class, or external dependency.
+- Use only the packages and macros already present in the base template.
+- If a feature would require a new package, rewrite the content using plain LaTeX already supported by the template instead.
 
 ${templateText}
 `;

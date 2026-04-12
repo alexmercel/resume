@@ -53,11 +53,11 @@ test('extractApplicationInfoFromJd falls back cleanly when explicit fields are a
     extractApplicationInfoFromJd(
       'Build distributed systems for high-scale AI products.',
       'Generated_Resume',
-      'Software_Gen'
+      'template1'
     ),
     {
       company: 'Generated Resume',
-      role: 'Software Gen'
+      role: 'template1'
     }
   );
 });
