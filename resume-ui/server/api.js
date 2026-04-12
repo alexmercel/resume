@@ -2916,12 +2916,24 @@ ${body.content || ''}
 
 async function readGenerationInputs(paths, env, userId, template) {
   const readDoc = (fileName) => readUserDocument(paths, env, userId, fileName);
-  const [dataProfile, dataProj, dataSkills, dataWork, dataEdu] = await Promise.all([
+  const [
+    dataProfile,
+    dataProj,
+    dataSkills,
+    dataWork,
+    dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular
+  ] = await Promise.all([
     readDoc('profile.md'),
     readDoc('projects.md'),
     readDoc('skills.md'),
     readDoc('workex.md'),
-    readDoc('education.md')
+    readDoc('education.md'),
+    readDoc('research.md'),
+    readDoc('certification.md'),
+    readDoc('extracurricular.md')
   ]);
   const agentRoot = getAgentRoot(paths.basePath);
   const ruleText = fs.readFileSync(path.join(agentRoot, 'rules', 'resume-generation-rule.md'), 'utf-8');
@@ -2940,6 +2952,9 @@ async function readGenerationInputs(paths, env, userId, template) {
     dataSkills,
     dataWork,
     dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular,
     ruleText,
     clRuleText,
     skillText,
@@ -3032,6 +3047,9 @@ async function handleGenerate(req, res, basePath, context) {
     dataSkills,
     dataWork,
     dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular,
     ruleText,
     clRuleText,
     skillText,
@@ -3060,6 +3078,15 @@ ${dataSkills}
 
 Work Experience:
 ${dataWork}
+
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
 
 === INSTRUCTIONS ===
 1. Analyze the Target Job Description and extract ONLY technology-focused keywords and technical hiring signals.
@@ -3112,7 +3139,7 @@ CRITICAL: Output ONLY valid JSON with no markdown wrappers.
       optimizationPercentage: calcPct
     };
   } catch {
-    optimizedExperience = `Projects:\n${dataProj}\nSkills:\n${dataSkills}\nWork Experience:\n${dataWork}`;
+    optimizedExperience = `Projects:\n${dataProj}\nSkills:\n${dataSkills}\nWork Experience:\n${dataWork}\nResearch:\n${dataResearch}\nCertifications & Awards:\n${dataCertification}\nExtracurricular & Workshops:\n${dataExtracurricular}`;
   }
 
   setGenerationStatus('Pass 2: AI actively converting your targeting metrics into robust LaTeX formatting...');
@@ -3134,6 +3161,15 @@ ${dataProfile}
 
 Education:
 ${dataEdu}
+
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
 
 ==== READ-ONLY EXPERIENCE SNAPSHOT (PRESERVE BOLDINGS EXACTLY, DO NOT REPHRASE) ====
 ${optimizedExperience}
@@ -3183,6 +3219,15 @@ ${dataWork}
 
 Education:
 ${dataEdu}
+
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
 
 === READ-ONLY EXPERIENCE SNAPSHOT ===
 ${optimizedExperience}
