@@ -27,6 +27,8 @@ const __dirname = path.dirname(__filename);
 
 const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
 const USER_TEMPLATE_DOCUMENT_PREFIX = 'template:';
+const GENERATED_TEX_DOCUMENT_PREFIX = 'generated-tex:';
+const GENERATED_PDF_DOCUMENT_PREFIX = 'generated-pdf:';
 const DEFAULT_USER_DOCUMENT_CONTENT = {
   'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
   'projects.md': '# Projects\n',
@@ -246,6 +248,14 @@ export function parseUserTemplateDocumentKey(documentKey) {
     type: match[1],
     fileName: match[2]
   };
+}
+
+function buildGeneratedTexDocumentKey(fileName) {
+  return `${GENERATED_TEX_DOCUMENT_PREFIX}${String(fileName || '').trim().replace(/\.tex$/i, '')}`;
+}
+
+function buildGeneratedPdfDocumentKey(fileName) {
+  return `${GENERATED_PDF_DOCUMENT_PREFIX}${String(fileName || '').trim().replace(/\.pdf$/i, '')}`;
 }
 
 function getDefaultTemplateBoilerplate(type) {
@@ -927,6 +937,33 @@ async function saveUserTemplateToDocuments(env, userId, type, fileName, content)
   return { source: 'user' };
 }
 
+async function readGeneratedArtifactValueFromDocuments(env, userId, documentKey) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('content')
+    .eq('user_id', userId)
+    .eq('document_key', documentKey)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Failed to load generated artifact fallback.');
+  return data?.content ?? '';
+}
+
+async function saveGeneratedArtifactValueToDocuments(env, userId, documentKey, content) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_documents')
+    .upsert({
+      user_id: userId,
+      document_key: documentKey,
+      content: String(content || ''),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,document_key' });
+
+  if (error) throw new Error(error.message || 'Failed to save generated artifact fallback.');
+}
+
 async function initializeUserWorkspace(paths, env, userId) {
   if (!userId || !isSupabaseEnabled(env)) return;
 
@@ -1245,6 +1282,12 @@ async function getStoredTexContent(paths, env, userId, fileName) {
     if (availableColumns.has('tex_content') && data?.tex_content != null) {
       return data.tex_content;
     }
+    const fallbackContent = await readGeneratedArtifactValueFromDocuments(
+      env,
+      userId,
+      buildGeneratedTexDocumentKey(normalizedFileName)
+    );
+    if (fallbackContent) return fallbackContent;
     if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
     return '';
   }
@@ -1261,12 +1304,20 @@ async function saveStoredTexContent(paths, env, userId, fileName, content) {
   const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
 
   if (userId && isSupabaseEnabled(env)) {
-    await upsertGenerationHistoryFields(env, {
+    const persisted = await upsertGenerationHistoryFields(env, {
       user_id: userId,
       artifact_base_name: artifactBaseName,
       tex_content: String(content || ''),
       updated_at: new Date().toISOString()
     });
+    if (!Object.prototype.hasOwnProperty.call(persisted, 'tex_content')) {
+      await saveGeneratedArtifactValueToDocuments(
+        env,
+        userId,
+        buildGeneratedTexDocumentKey(normalizedFileName),
+        String(content || '')
+      );
+    }
     if (isRemoteLatexCompilerEnabled(env)) {
       return;
     }
@@ -1291,13 +1342,24 @@ async function savePdfArtifact(paths, env, userId, fileName, pdfBuffer, options 
     });
 
     if (!options.preview && isSupabaseEnabled(env)) {
-      await upsertGenerationHistoryFields(env, {
+      const persisted = await upsertGenerationHistoryFields(env, {
         user_id: userId,
         artifact_base_name: normalizedFileName.replace(/\.pdf$/i, ''),
         pdf_blob_path: blob.pathname,
         pdf_blob_url: blob.url,
         updated_at: new Date().toISOString()
       });
+      if (
+        !Object.prototype.hasOwnProperty.call(persisted, 'pdf_blob_path') &&
+        !Object.prototype.hasOwnProperty.call(persisted, 'pdf_blob_url')
+      ) {
+        await saveGeneratedArtifactValueToDocuments(
+          env,
+          userId,
+          buildGeneratedPdfDocumentKey(normalizedFileName),
+          blob.pathname
+        );
+      }
     }
 
     return {
@@ -1329,8 +1391,13 @@ async function streamPdfArtifactToResponse(paths, env, userId, fileName, res) {
     const blobPath = availableColumns.has('pdf_blob_path')
       ? (data?.pdf_blob_path || data?.pdf_blob_url || '')
       : '';
-    if (blobPath) {
-      const blobResult = await getBlob(blobPath, { access: 'private' });
+    const fallbackBlobPath = blobPath || await readGeneratedArtifactValueFromDocuments(
+      env,
+      userId,
+      buildGeneratedPdfDocumentKey(normalizedFileName)
+    );
+    if (fallbackBlobPath) {
+      const blobResult = await getBlob(fallbackBlobPath, { access: 'private' });
       if (!blobResult?.stream) {
         res.statusCode = 404;
         res.end('Not found');
