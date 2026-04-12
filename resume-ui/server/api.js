@@ -2579,14 +2579,6 @@ async function handleCompileTemplate(req, res, basePath, context) {
   const previewName = `Preview_${type}_${fileName}`;
   const baseName = fileName.replace(/\.tex$/i, '').replace(/\.pdf$/i, '');
   const templateContent = template.content;
-
-  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
-  const apiKey = await resolveProviderCredential(
-    context.paths,
-    context.env,
-    context.authContext.userId,
-    settings.provider
-  );
   const latexMode = getLatexExecutionMode(context.env);
   const compileResult = latexMode === 'remote'
     ? await compileLatexRemotelyWithRetries({
@@ -2594,22 +2586,16 @@ async function handleCompileTemplate(req, res, basePath, context) {
         userId: context.authContext.userId,
         fileName: previewName,
         content: templateContent,
-        providerId: settings.provider,
-        apiKey,
-        model: settings.selectedModel,
         maxAttempts: 3,
-        allowRepair: true,
+        allowRepair: false,
         statusPrefix: 'Compiling template preview remotely'
       })
     : await compileLatexWithRetries({
         workingDir: context.paths.texDir,
         fileName: previewName,
         content: templateContent,
-        providerId: settings.provider,
-        apiKey,
-        model: settings.selectedModel,
         maxAttempts: 3,
-        allowRepair: true,
+        allowRepair: false,
         statusPrefix: 'Compiling template preview'
       });
 
