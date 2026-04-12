@@ -26,6 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
+const USER_TEMPLATE_DOCUMENT_PREFIX = 'template:';
 const DEFAULT_USER_DOCUMENT_CONTENT = {
   'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
   'projects.md': '# Projects\n',
@@ -232,6 +233,19 @@ export function normalizeTemplateType(type) {
 
 function getTemplateFolderName(type) {
   return normalizeTemplateType(type) === 'generic' ? 'Generic' : 'Wireframes';
+}
+
+export function buildUserTemplateDocumentKey(type, fileName) {
+  return `${USER_TEMPLATE_DOCUMENT_PREFIX}${normalizeTemplateType(type)}:${String(fileName || '').trim()}`;
+}
+
+export function parseUserTemplateDocumentKey(documentKey) {
+  const match = String(documentKey || '').match(/^template:(wireframes|generic):(.+)$/);
+  if (!match) return null;
+  return {
+    type: match[1],
+    fileName: match[2]
+  };
 }
 
 function getDefaultTemplateBoilerplate(type) {
@@ -861,6 +875,58 @@ async function ensureUserSettingsSeeded(env, userId) {
   if (error) throw new Error(error.message || 'Failed to initialize user settings.');
 }
 
+async function listUserTemplatesFromDocuments(env, userId, type) {
+  const normalizedType = normalizeTemplateType(type);
+  const { admin } = await getDbClientsOrThrow(env);
+  const keyPrefix = `${USER_TEMPLATE_DOCUMENT_PREFIX}${normalizedType}:`;
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('document_key')
+    .eq('user_id', userId)
+    .like('document_key', `${keyPrefix}%`)
+    .order('document_key', { ascending: true });
+
+  if (error) throw new Error(error.message || 'Failed to load fallback user templates.');
+
+  return (data || [])
+    .map((row) => parseUserTemplateDocumentKey(row.document_key))
+    .filter((row) => row && row.type === normalizedType)
+    .map((row) => row.fileName);
+}
+
+async function readUserTemplateFromDocuments(env, userId, type, fileName) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('content, updated_at')
+    .eq('user_id', userId)
+    .eq('document_key', buildUserTemplateDocumentKey(type, fileName))
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Failed to load fallback user template.');
+  if (data?.content == null) return null;
+  return {
+    content: data.content,
+    source: 'user',
+    updatedAt: data.updated_at || null
+  };
+}
+
+async function saveUserTemplateToDocuments(env, userId, type, fileName, content) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_documents')
+    .upsert({
+      user_id: userId,
+      document_key: buildUserTemplateDocumentKey(type, fileName),
+      content: String(content || ''),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,document_key' });
+
+  if (error) throw new Error(error.message || 'Failed to save fallback user template.');
+  return { source: 'user' };
+}
+
 async function initializeUserWorkspace(paths, env, userId) {
   if (!userId || !isSupabaseEnabled(env)) return;
 
@@ -892,7 +958,15 @@ async function listAccessibleTemplates(basePath, env, userId, type) {
 
   if (error) {
     if (isMissingTableError(error, 'user_templates')) {
-      return sharedTemplates;
+      const fallbackTemplates = await listUserTemplatesFromDocuments(env, userId, normalizedType);
+      const merged = new Map(sharedTemplates.map((item) => [item.name, item]));
+      fallbackTemplates.forEach((templateName) => {
+        merged.set(templateName, {
+          name: templateName,
+          source: 'user'
+        });
+      });
+      return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
     }
     throw new Error(error.message || 'Failed to load user templates.');
   }
@@ -921,7 +995,10 @@ async function readAccessibleTemplate(basePath, env, userId, type, fileName) {
       .maybeSingle();
 
     if (error) {
-      if (!isMissingTableError(error, 'user_templates')) {
+      if (isMissingTableError(error, 'user_templates')) {
+        const fallbackTemplate = await readUserTemplateFromDocuments(env, userId, normalizedType, fileName);
+        if (fallbackTemplate) return fallbackTemplate;
+      } else {
         throw new Error(error.message || 'Failed to load template.');
       }
     }
@@ -966,7 +1043,7 @@ async function saveUserTemplate(basePath, env, userId, type, fileName, content) 
     }, { onConflict: 'user_id,template_type,template_name' });
 
   if (error && isMissingTableError(error, 'user_templates')) {
-    throw new Error('The user_templates table is not available yet. Run the latest Supabase schema migration first.');
+    return saveUserTemplateToDocuments(env, userId, normalizedType, fileName, nextContent);
   }
   if (error) throw new Error(error.message || 'Failed to save user template.');
   return { source: 'user' };

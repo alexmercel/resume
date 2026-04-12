@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildUserTemplateDocumentKey,
   documentHasMeaningfulContent,
   extractApplicationInfoFromJd,
-  normalizeTemplateType
+  normalizeTemplateType,
+  parseUserTemplateDocumentKey
 } from './api.js';
 
 test('documentHasMeaningfulContent treats seeded placeholders as empty', () => {
@@ -60,4 +62,18 @@ test('extractApplicationInfoFromJd falls back cleanly when explicit fields are a
       role: 'template1'
     }
   );
+});
+
+test('template document keys are namespaced and reversible', () => {
+  const key = buildUserTemplateDocumentKey('wireframes', 'template1.tex');
+  assert.equal(key, 'template:wireframes:template1.tex');
+  assert.deepEqual(parseUserTemplateDocumentKey(key), {
+    type: 'wireframes',
+    fileName: 'template1.tex'
+  });
+});
+
+test('non-template document keys are ignored by template parser', () => {
+  assert.equal(parseUserTemplateDocumentKey('projects.md'), null);
+  assert.equal(parseUserTemplateDocumentKey('template:other:file.tex'), null);
 });
