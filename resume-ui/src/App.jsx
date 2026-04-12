@@ -1793,27 +1793,28 @@ function TemplatesView({ type = 'wireframes' }) {
   const handleCompile = async () => {
     setCompileStatus('Compiling...');
     setCompileError('');
-    const saved = await handleSave();
-    if (saved) {
-       fetch(`/api/compile-template/${type}/${activeFile}`, { method: 'POST' })
-         .then(res => res.json())
-         .then(compData => {
-            if (compData.success) {
-              setCompileStatus('Success!');
-              setCompileError('');
-              setLastWorkingContent(content);
-              setTimeout(() => setCompileStatus(''), 2000);
-              setRenderTimestamp(Date.now()); // refresh iframe
-            } else {
-              setCompileStatus('Error Compiling');
-              setCompileError(compData.error || 'Failed to compile template preview.');
-            }
-         })
-         .catch((error) => {
-           setCompileStatus('Error Compiling');
-           setCompileError(error.message || 'Failed to compile template preview.');
-         });
-    }
+    fetch(`/api/compile-template/${type}/${activeFile}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    })
+      .then(res => res.json())
+      .then(compData => {
+        if (compData.success) {
+          setCompileStatus('Success!');
+          setCompileError('');
+          setLastWorkingContent(content);
+          setTimeout(() => setCompileStatus(''), 2000);
+          setRenderTimestamp(Date.now()); // refresh iframe
+        } else {
+          setCompileStatus('Error Compiling');
+          setCompileError(compData.error || 'Failed to compile template preview.');
+        }
+      })
+      .catch((error) => {
+        setCompileStatus('Error Compiling');
+        setCompileError(error.message || 'Failed to compile template preview.');
+      });
   };
 
   const handleUndoCompileFailure = () => {

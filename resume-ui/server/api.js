@@ -2465,15 +2465,32 @@ async function handleTemplateFile(req, res, basePath, context = null) {
   }
 
   const body = await readJsonBody(req);
-  const result = await saveUserTemplate(basePath, env, currentUserId, normalizedType, fileName, body.content || '');
-  sendJson(res, { success: true, source: result.source });
+  try {
+    const result = await saveUserTemplate(basePath, env, currentUserId, normalizedType, fileName, body.content || '');
+    sendJson(res, { success: true, source: result.source });
+  } catch (error) {
+    console.error('[template-save] failed', {
+      type: normalizedType,
+      fileName,
+      userId: currentUserId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    sendJson(res, {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save template.'
+    }, 500);
+  }
 }
 
 async function handleCompileTemplate(req, res, basePath, context) {
   const parts = req.url.split('/api/compile-template/')[1].split('?')[0].split('/');
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
-  const template = await readAccessibleTemplate(basePath, context.env, context.authContext.userId, type, fileName);
+  const body = req.method === 'POST' ? await readJsonBody(req).catch(() => ({})) : {};
+  const inlineContent = typeof body.content === 'string' ? body.content : '';
+  const template = inlineContent
+    ? { content: inlineContent, source: 'inline', updatedAt: null }
+    : await readAccessibleTemplate(basePath, context.env, context.authContext.userId, type, fileName);
   if (!template) {
     sendJson(res, { success: false, error: 'Template not found' }, 404);
     return;
@@ -3425,6 +3442,12 @@ export function createRequestHandler({ basePath } = {}) {
       sendJson(res, { success: false, error: 'Not found.' }, 404);
     } catch (error) {
       setGenerationStatus('Idle');
+      console.error('[api] request failed', {
+        url: request.url,
+        method: request.method,
+        userId: request.user?.id || null,
+        error: error instanceof Error ? error.message : String(error)
+      });
       sendJson(res, { success: false, error: error.message || 'Server error.' }, 500);
     }
   };
