@@ -1756,27 +1756,49 @@ async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
       compileUrl.searchParams.set('command', remoteConfig.command);
     }
 
-    const response = await fetch(compileUrl, {
-      redirect: 'follow',
-      headers: {
-        Accept: 'application/pdf, text/plain;q=0.9, */*;q=0.8'
-      }
-    });
+    try {
+      const response = await fetch(compileUrl, {
+        redirect: 'follow',
+        headers: {
+          Accept: 'application/pdf, text/plain;q=0.9, */*;q=0.8'
+        }
+      });
 
-    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-    if (!response.ok || !contentType.includes('pdf')) {
-      const output = await response.text().catch(() => '');
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      if (!response.ok || !contentType.includes('pdf')) {
+        const output = await response.text().catch(() => '');
+        const diagnostic = output || `Remote compiler failed with status ${response.status}.`;
+        console.error('[remote-latex] compile failed', {
+          fileName,
+          status: response.status,
+          contentType,
+          compilerHost: new URL(remoteConfig.baseUrl).host,
+          sourcePath: tempBlob.pathname,
+          outputSnippet: diagnostic.slice(0, 1200)
+        });
+        return {
+          success: false,
+          output: diagnostic
+        };
+      }
+
+      return {
+        success: true,
+        output: `Compiled remotely via ${new URL(remoteConfig.baseUrl).host}.`,
+        pdfBuffer: Buffer.from(await response.arrayBuffer())
+      };
+    } catch (error) {
+      console.error('[remote-latex] request failed', {
+        fileName,
+        compilerHost: new URL(remoteConfig.baseUrl).host,
+        sourcePath: tempBlob.pathname,
+        error: error instanceof Error ? error.message : String(error)
+      });
       return {
         success: false,
-        output: output || `Remote compiler failed with status ${response.status}.`
+        output: error instanceof Error ? error.message : String(error)
       };
     }
-
-    return {
-      success: true,
-      output: `Compiled remotely via ${new URL(remoteConfig.baseUrl).host}.`,
-      pdfBuffer: Buffer.from(await response.arrayBuffer())
-    };
   } finally {
     await deleteBlob(tempBlob.pathname).catch(() => {});
   }
