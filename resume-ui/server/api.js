@@ -25,7 +25,16 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
+const REQUIRED_DATA_FILES = [
+  'profile.md',
+  'projects.md',
+  'workex.md',
+  'education.md',
+  'skills.md',
+  'research.md',
+  'certification.md',
+  'extracurricular.md'
+];
 const USER_TEMPLATE_DOCUMENT_PREFIX = 'template:';
 const GENERATED_TEX_DOCUMENT_PREFIX = 'generated-tex:';
 const GENERATED_PDF_DOCUMENT_PREFIX = 'generated-pdf:';
@@ -34,10 +43,145 @@ const DEFAULT_USER_DOCUMENT_CONTENT = {
   'projects.md': '# Projects\n',
   'workex.md': '# Experience\n',
   'education.md': '# Education\n',
-  'skills.md': '# Technical Skills\n'
+  'skills.md': '# Technical Skills\n',
+  'research.md': '# Research\n',
+  'certification.md': '# Certifications & Awards\n',
+  'extracurricular.md': '# Extracurricular & Workshops\n'
 };
 const generationState = {
   status: 'Idle'
+};
+
+const TECH_KEYWORD_CANONICALS = {
+  'python': 'Python',
+  'java': 'Java',
+  'javascript': 'JavaScript',
+  'typescript': 'TypeScript',
+  'c++': 'C++',
+  'cpp': 'C++',
+  'c#': 'C#',
+  'c sharp': 'C#',
+  'go': 'Go',
+  'golang': 'Go',
+  'rust': 'Rust',
+  'scala': 'Scala',
+  'kotlin': 'Kotlin',
+  'swift': 'Swift',
+  'r': 'R',
+  'sql': 'SQL',
+  'postgres': 'PostgreSQL',
+  'postgresql': 'PostgreSQL',
+  'mysql': 'MySQL',
+  'sqlite': 'SQLite',
+  'mongodb': 'MongoDB',
+  'redis': 'Redis',
+  'snowflake': 'Snowflake',
+  'databricks': 'Databricks',
+  'bigquery': 'BigQuery',
+  'tableau': 'Tableau',
+  'power bi': 'Power BI',
+  'excel': 'Excel',
+  'pandas': 'Pandas',
+  'numpy': 'NumPy',
+  'scikit learn': 'scikit-learn',
+  'scikit-learn': 'scikit-learn',
+  'tensorflow': 'TensorFlow',
+  'pytorch': 'PyTorch',
+  'keras': 'Keras',
+  'hugging face': 'Hugging Face',
+  'llm': 'LLMs',
+  'llms': 'LLMs',
+  'large language models': 'LLMs',
+  'agentic ai': 'Agentic AI',
+  'agents': 'AI Agents',
+  'ai agents': 'AI Agents',
+  'rag': 'RAG',
+  'rags': 'RAG',
+  'retrieval augmented generation': 'RAG',
+  'etl': 'ETL',
+  'elt': 'ELT',
+  'data pipeline': 'Data Pipelines',
+  'data pipelines': 'Data Pipelines',
+  'rest': 'REST APIs',
+  'rest api': 'REST APIs',
+  'rest apis': 'REST APIs',
+  'api integration': 'API Integrations',
+  'api integrations': 'API Integrations',
+  'graphql': 'GraphQL',
+  'grpc': 'gRPC',
+  'microservices': 'Microservices',
+  'distributed systems': 'Distributed Systems',
+  'distributed system': 'Distributed Systems',
+  'event driven architecture': 'Event-Driven Architecture',
+  'event-driven architecture': 'Event-Driven Architecture',
+  'system design': 'System Design',
+  'oop': 'OOP',
+  'oops': 'OOP',
+  'object oriented programming': 'OOP',
+  'object-oriented programming': 'OOP',
+  'docker': 'Docker',
+  'kubernetes': 'Kubernetes',
+  'terraform': 'Terraform',
+  'ansible': 'Ansible',
+  'jenkins': 'Jenkins',
+  'github actions': 'GitHub Actions',
+  'gitlab ci': 'GitLab CI',
+  'ci/cd': 'CI/CD',
+  'cicd': 'CI/CD',
+  'aws': 'AWS',
+  'amazon web services': 'AWS',
+  'gcp': 'GCP',
+  'google cloud': 'GCP',
+  'google cloud platform': 'GCP',
+  'azure': 'Azure',
+  'linux': 'Linux',
+  'unix': 'Unix',
+  'bash': 'Bash',
+  'shell scripting': 'Shell Scripting',
+  'react': 'React',
+  'react.js': 'React',
+  'node': 'Node.js',
+  'nodejs': 'Node.js',
+  'node.js': 'Node.js',
+  'next.js': 'Next.js',
+  'nextjs': 'Next.js',
+  'express': 'Express',
+  'flask': 'Flask',
+  'fastapi': 'FastAPI',
+  'django': 'Django',
+  'spring': 'Spring',
+  'spring boot': 'Spring Boot',
+  'verilog': 'Verilog',
+  'systemverilog': 'SystemVerilog',
+  'fpga': 'FPGA',
+  'matlab': 'MATLAB',
+  'simulink': 'Simulink',
+  'agile': 'Agile',
+  'scrum': 'Scrum'
+};
+
+const TECH_KEYWORD_ALIASES = {
+  'SQL': ['structured query language'],
+  'PostgreSQL': ['postgres', 'postgresql', 'postgre sql'],
+  'REST APIs': ['rest', 'rest api', 'rest apis', 'restful api', 'restful apis'],
+  'API Integrations': ['api integration', 'api integrations'],
+  'Distributed Systems': ['distributed systems', 'distributed system'],
+  'GitHub Actions': ['github actions', 'github action'],
+  'LLMs': ['llm', 'llms', 'large language model', 'large language models'],
+  'RAG': ['rag', 'rags', 'retrieval augmented generation', 'retrieval-augmented generation'],
+  'Agentic AI': ['agentic ai'],
+  'OOP': ['oop', 'oops', 'object oriented programming', 'object-oriented programming'],
+  'CI/CD': ['ci/cd', 'cicd', 'continuous integration', 'continuous delivery', 'continuous deployment'],
+  'Node.js': ['node', 'nodejs', 'node.js'],
+  'React': ['react', 'react.js'],
+  'Next.js': ['next.js', 'nextjs'],
+  'Go': ['go', 'golang'],
+  'C#': ['c#', 'c sharp'],
+  'C++': ['c++', 'cpp'],
+  'AWS': ['aws', 'amazon web services'],
+  'GCP': ['gcp', 'google cloud', 'google cloud platform'],
+  'scikit-learn': ['scikit learn', 'scikit-learn'],
+  'Data Pipelines': ['data pipeline', 'data pipelines']
 };
 
 function setGenerationStatus(status) {
@@ -2031,10 +2175,88 @@ function normalizeKeyword(value) {
     .trim();
 }
 
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function canonicalizeTechnicalKeyword(keyword) {
+  const normalized = normalizeKeyword(keyword);
+  if (!normalized) return '';
+  return TECH_KEYWORD_CANONICALS[normalized] || '';
+}
+
+function isLikelyTechnicalPhrase(keyword) {
+  const normalized = normalizeKeyword(keyword);
+  if (!normalized || normalized.length < 2) return false;
+  if (canonicalizeTechnicalKeyword(normalized)) return true;
+
+  if (/[#+.]/.test(String(keyword || ''))) return true;
+  if (/^[a-z]{1,5}\/[a-z]{1,5}$/i.test(String(keyword || ''))) return true;
+  if (/^[A-Z]{2,6}(?:s)?$/.test(String(keyword || '').trim())) return true;
+
+  return [
+    /\b(?:distributed|scalable|event driven|event-driven|microservice|microservices|system|systems)\b.*\b(?:architecture|architectures|system|systems)\b/,
+    /\bapi\b.*\b(?:integration|integrations)\b/,
+    /\bdata\b.*\b(?:pipeline|pipelines)\b/,
+    /\b(?:retrieval augmented generation|agentic ai|large language models|object oriented programming)\b/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function filterTechnicalKeywords(keywords = []) {
+  const canonicalMap = new Map();
+
+  for (const keyword of keywords) {
+    const raw = String(keyword || '').trim();
+    if (!raw) continue;
+
+    const canonical = canonicalizeTechnicalKeyword(raw);
+    if (canonical) {
+      canonicalMap.set(normalizeKeyword(canonical), canonical);
+      continue;
+    }
+
+    if (!isLikelyTechnicalPhrase(raw)) continue;
+    canonicalMap.set(normalizeKeyword(raw), raw);
+  }
+
+  return [...canonicalMap.values()];
+}
+
+function extractTechnicalKeywordsFromText(text) {
+  const normalizedText = normalizeKeyword(text);
+  const rawText = String(text || '').toLowerCase();
+  const detected = new Map();
+
+  Object.entries(TECH_KEYWORD_CANONICALS).forEach(([alias, canonical]) => {
+    const aliasPattern = normalizeKeyword(alias);
+    if (!aliasPattern) return;
+
+    const escapedAlias = escapeRegex(aliasPattern).replace(/\s+/g, '\\s+');
+    const normalizedRegex = new RegExp(`(^|[^a-z0-9#+.])${escapedAlias}([^a-z0-9#+.]|$)`, 'i');
+    const rawEscapedAlias = escapeRegex(String(alias || '').toLowerCase()).replace(/\s+/g, '\\s+');
+    const rawRegex = new RegExp(`(^|[^a-z0-9#+.])${rawEscapedAlias}([^a-z0-9#+.]|$)`, 'i');
+    if (normalizedRegex.test(normalizedText) || rawRegex.test(rawText)) {
+      detected.set(normalizeKeyword(canonical), canonical);
+    }
+  });
+
+  return [...detected.values()];
+}
+
 function getKeywordAliases(keyword) {
-  const raw = (keyword || '').trim();
+  const raw = String(keyword || '').trim();
   const normalized = normalizeKeyword(raw);
+  const canonical = canonicalizeTechnicalKeyword(raw);
   const aliases = new Set([raw.toLowerCase(), normalized]);
+
+  if (canonical) {
+    aliases.add(canonical.toLowerCase());
+    aliases.add(normalizeKeyword(canonical));
+    (TECH_KEYWORD_ALIASES[canonical] || []).forEach((alias) => {
+      aliases.add(alias.toLowerCase());
+      aliases.add(normalizeKeyword(alias));
+    });
+  }
 
   if (normalized === 'r') {
     aliases.add('r language');
@@ -2063,18 +2285,33 @@ function contentContainsKeyword(content, keyword) {
 
   return getKeywordAliases(keyword).some((alias) => {
     if (!alias) return false;
+    const normalizedAlias = normalizeKeyword(alias);
+    if (!normalizedAlias) return false;
+    const escaped = escapeRegex(normalizedAlias).replace(/\s+/g, '\\s+');
+    const normalizedRegex = new RegExp(`(^|[^a-z0-9#+.])${escaped}([^a-z0-9#+.]|$)`, 'i');
+    if (normalizedRegex.test(haystack)) return true;
+
     if (alias.length === 1) {
-      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const singleTokenRegex = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i');
+      const rawEscaped = escapeRegex(alias);
+      const singleTokenRegex = new RegExp(`(^|[^a-z0-9])${rawEscaped}([^a-z0-9]|$)`, 'i');
       return singleTokenRegex.test(rawHaystack);
     }
-    return haystack.includes(normalizeKeyword(alias)) || rawHaystack.includes(alias);
+
+    return rawHaystack.includes(alias);
   });
 }
 
-function calculateMatchedKeywords(jdKeywords, content) {
-  const deduped = [...new Map((jdKeywords || []).map((keyword) => [normalizeKeyword(keyword), keyword])).values()];
+export function calculateMatchedKeywords(jdKeywords, content) {
+  const deduped = filterTechnicalKeywords(jdKeywords);
   return deduped.filter((keyword) => contentContainsKeyword(content, keyword));
+}
+
+export function filterTechnicalKeywordsForTesting(keywords) {
+  return filterTechnicalKeywords(keywords);
+}
+
+export function extractTechnicalKeywordsFromTextForTesting(text) {
+  return extractTechnicalKeywordsFromText(text);
 }
 
 export function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
@@ -2389,7 +2626,7 @@ async function handleOnboardingImport(req, res, basePath, context) {
   const onboardingPrompt = `
 You are a resume ingestion and normalization utility for a resume builder app.
 
-Your task is to read the uploaded resume and convert whatever information you can confidently extract into FIVE markdown files that match this app's storage format.
+Your task is to read the uploaded resume and convert whatever information you can confidently extract into EIGHT markdown files that match this app's storage format.
 
 Return ONLY valid raw JSON with this exact schema:
 {
@@ -2397,7 +2634,10 @@ Return ONLY valid raw JSON with this exact schema:
   "projects.md": "markdown string",
   "workex.md": "markdown string",
   "education.md": "markdown string",
-  "skills.md": "markdown string"
+  "skills.md": "markdown string",
+  "research.md": "markdown string",
+  "certification.md": "markdown string",
+  "extracurricular.md": "markdown string"
 }
 
 STRICT FORMAT REQUIREMENTS:
@@ -2445,6 +2685,28 @@ skills.md format:
 ## Category
 - **Subcategory:** item1, item2
 
+research.md format:
+# Research
+
+## Research Item or Publication
+*Date or Year*
+- bullet
+
+certification.md format:
+# Certifications & Awards
+
+## Issuer or Organization
+*Date or Year*
+- **Certification/Award:** value
+- bullet
+
+extracurricular.md format:
+# Extracurricular & Workshops
+
+## Activity or Workshop
+*Date or Year*
+- bullet
+
 RULES:
 1. Extract only what is actually supported by the uploaded resume.
 2. If a section is missing, still return a valid file with just its top-level heading and no invented content.
@@ -2453,7 +2715,10 @@ RULES:
 5. Put technical skills into grouped skill categories when possible.
 6. If personal profile fields are missing, leave them blank but preserve the line.
 7. Do not include markdown code fences.
-8. Return all five files every time.
+8. Return all eight files every time.
+9. Put publications, papers, patents, research assistantships, or thesis-style work in research.md when they are clearly distinct from normal projects.
+10. Put certifications, awards, honors, or licenses in certification.md.
+11. Put leadership, volunteering, clubs, workshops, hackathons, mentoring, teaching assistant work, or notable extracurricular involvement in extracurricular.md unless they clearly belong in work experience.
 `;
 
   const rawResponse = await generateWithUploadedResume({
@@ -3056,7 +3321,7 @@ async function handleGenerate(req, res, basePath, context) {
     templateText
   } = await readGenerationInputs(context.paths, context.env, context.authContext.userId, template);
 
-  setGenerationStatus('Pass 1: AI actively analyzing target JD and generating mapping overlaps...');
+ setGenerationStatus('Pass 1: AI actively analyzing target JD and generating mapping overlaps...');
   const pass1Prompt = `
 You are an expert AI Career Coach and Resume Optimizer.
 I am providing you with a Target Job Description and a Candidate's Current Experience.
@@ -3089,22 +3354,42 @@ Extracurricular & Workshops:
 ${dataExtracurricular}
 
 === INSTRUCTIONS ===
-1. Analyze the Target Job Description and extract ONLY technology-focused keywords and technical hiring signals.
-2. Prioritize concrete technical terms such as languages, frameworks, libraries, SDKs, APIs, protocols, cloud platforms, databases, data tools, DevOps tools, operating systems, infrastructure, AI/ML technologies, and named technical methods.
-3. DO NOT extract generic soft skills or vague business phrases.
-4. Normalize keywords to concise resume-friendly technology labels.
-5. Prefer explicit, repeated, or high-signal technical terms from the JD.
-6. Cross-reference these JD technology keywords against the Candidate Current Experience exactly as written.
-7. DO NOT rewrite, paraphrase, optimize, inject, expand, or modify any candidate bullets, skills, or project text.
-8. Return the original Candidate Current Experience back unchanged inside the response field named \`optimizedExperience\`.
-9. Preserve ALL existing \`**markdown bold**\` tags exactly as they appear.
-10. Return your response AS A STRICT RAW JSON OBJECT matching this exact schema:
+1. Analyze the Target Job Description and extract ONLY concrete technical keywords and technical architecture signals.
+2. Prioritize items such as languages, frameworks, libraries, SDKs, APIs, cloud platforms, databases, DevOps tools, hardware languages, BI/data tools, AI/ML terms, and architecture concepts.
+3. Good examples include: Python, Docker, Verilog, SQL, PostgreSQL, C++, GitHub Actions, ETL, Tableau, REST APIs, Distributed Systems, API Integrations, OOP, RAG, Agentic AI, and LLMs.
+4. DO NOT extract generic soft skills, team phrases, business jargon, or random role words such as ownership, collaboration, fast-paced, communication, problem solving, stakeholder management, or innovation.
+5. Normalize keywords to concise canonical technology labels.
+6. Prefer explicit, repeated, or high-signal technical terms from the JD.
+7. Cross-reference these JD technology keywords against the Candidate Current Experience exactly as written.
+8. DO NOT rewrite, paraphrase, optimize, inject, expand, or modify any candidate bullets, skills, or project text.
+9. Return the original Candidate Current Experience back unchanged inside the response field named \`optimizedExperience\`.
+10. Preserve ALL existing \`**markdown bold**\` tags exactly as they appear.
+11. Return between 6 and 20 keywords max, and make every keyword a technology or architecture concept.
+12. Return your response AS A STRICT RAW JSON OBJECT matching this exact schema:
 {
   "jdKeywords": ["keyword"],
   "matchedKeywords": ["keyword"],
   "optimizationPercentage": 0,
-  "optimizedExperience": "original text"
+    "optimizedExperience": "original text",
+    "contentPlan": {
+      "roleCount": 1,
+      "projectCount": 2,
+    "includeResearch": false,
+    "includeCertifications": false,
+    "includeExtracurricular": false,
+    "courseworkPerDegree": 3,
+    "selectionRationale": "short explanation"
+  }
 }
+13. The \`contentPlan\` must be selective and concise:
+    - \`roleCount\` must be either 1 or 2 based on how many roles are genuinely needed to match the JD.
+    - \`projectCount\` must be either 2 or 3, and must never be lower than 2.
+    - Always include at least the 2 strongest JD-aligned projects, even if other optional sections need to be cut for space.
+    - \`includeResearch\` should be true only if the research materially strengthens candidacy for this JD.
+    - \`includeCertifications\` should be true only if certifications or awards are role-relevant and worth the space.
+    - \`includeExtracurricular\` should be true only if extracurriculars add real evidence for the JD and space allows.
+    - \`courseworkPerDegree\` must be 3.
+14. Prefer omission over weak relevance. Do not recommend including sections just because they exist.
 CRITICAL: Output ONLY valid JSON with no markdown wrappers.
 `;
 
@@ -3127,19 +3412,47 @@ CRITICAL: Output ONLY valid JSON with no markdown wrappers.
     );
 
     optimizedExperience = parsedObj.optimizedExperience || '';
-    const jdKeywords = [...new Map((parsedObj.jdKeywords || []).map((keyword) => [normalizeKeyword(keyword), keyword])).values()];
+    const modelKeywords = filterTechnicalKeywords(parsedObj.jdKeywords || []);
+    const heuristicKeywords = extractTechnicalKeywordsFromText(prompt);
+    const jdKeywords = [...new Map(
+      [...modelKeywords, ...heuristicKeywords].map((keyword) => [normalizeKeyword(keyword), keyword])
+    ).values()];
     const matchedKeywords = calculateMatchedKeywords(jdKeywords, optimizedExperience);
     const calcPct = jdKeywords.length
       ? Math.min(100, Math.round((matchedKeywords.length / jdKeywords.length) * 100))
       : 0;
+    const contentPlan = {
+      roleCount: parsedObj?.contentPlan?.roleCount === 2 ? 2 : 1,
+      projectCount: parsedObj?.contentPlan?.projectCount === 3 ? 3 : 2,
+      includeResearch: Boolean(parsedObj?.contentPlan?.includeResearch),
+      includeCertifications: Boolean(parsedObj?.contentPlan?.includeCertifications),
+      includeExtracurricular: Boolean(parsedObj?.contentPlan?.includeExtracurricular),
+      courseworkPerDegree: 3,
+      selectionRationale: String(parsedObj?.contentPlan?.selectionRationale || '').trim()
+    };
 
     pass1Metrics = {
       jdKeywords,
       matchedKeywords,
-      optimizationPercentage: calcPct
+      optimizationPercentage: calcPct,
+      contentPlan
     };
   } catch {
     optimizedExperience = `Projects:\n${dataProj}\nSkills:\n${dataSkills}\nWork Experience:\n${dataWork}\nResearch:\n${dataResearch}\nCertifications & Awards:\n${dataCertification}\nExtracurricular & Workshops:\n${dataExtracurricular}`;
+    pass1Metrics = {
+      jdKeywords: [],
+      matchedKeywords: [],
+      optimizationPercentage: 0,
+      contentPlan: {
+        roleCount: 1,
+        projectCount: 2,
+        includeResearch: false,
+        includeCertifications: false,
+        includeExtracurricular: false,
+        courseworkPerDegree: 3,
+        selectionRationale: ''
+      }
+    };
   }
 
   setGenerationStatus('Pass 2: AI actively converting your targeting metrics into robust LaTeX formatting...');
@@ -3174,6 +3487,15 @@ ${dataExtracurricular}
 ==== READ-ONLY EXPERIENCE SNAPSHOT (PRESERVE BOLDINGS EXACTLY, DO NOT REPHRASE) ====
 ${optimizedExperience}
 
+=== CONTENT SELECTION PLAN (FOLLOW THIS PLAN, DO NOT INCLUDE EVERYTHING) ===
+- Work roles to include: ${pass1Metrics?.contentPlan?.roleCount === 2 ? 'up to 2' : '1'}
+- Projects to include: ${pass1Metrics?.contentPlan?.projectCount || 2}
+- Include research: ${pass1Metrics?.contentPlan?.includeResearch ? 'yes' : 'no'}
+- Include certifications & awards: ${pass1Metrics?.contentPlan?.includeCertifications ? 'yes' : 'no'}
+- Include extracurriculars: ${pass1Metrics?.contentPlan?.includeExtracurricular ? 'yes' : 'no'}
+- Maximum coursework items per degree: ${pass1Metrics?.contentPlan?.courseworkPerDegree || 3}
+- Selection rationale: ${pass1Metrics?.contentPlan?.selectionRationale || 'Prefer the most directly relevant evidence for the JD.'}
+
 === BASE TEMPLATE (DO NOT MODIFY THE MACROS/FORMATTING, JUST SWAP OUT THE CONTENT DATA) ===
 You must completely swap out structural placeholders explicitly with exact metrics from the User Data section.
 IMPORTANT: Replace personal identity placeholders using the exact Profile Information context above.
@@ -3189,6 +3511,20 @@ STRICT LATEX DEPENDENCY LOCK:
 - Do NOT introduce any new LaTeX package, library, plugin, font package, icon package, document class, or external dependency.
 - Use only the packages and macros already present in the base template.
 - If a feature would require a new package, rewrite the content using plain LaTeX already supported by the template instead.
+STRICT CONTENT CURATION RULES:
+- Education, Work Experience, Projects, and Skills are mandatory core sections and must always be included.
+- Contact/social links from the profile are fixed and should always be included.
+- Select only 1 or 2 roles based on the JD. Prefer 1 role when it is enough to demonstrate fit; use 2 only when the JD clearly spans multiple relevant experiences.
+- Always include at least 2 projects, and include 3 only when space allows and the third project is still strong.
+- The first 2 projects must be the strongest JD-aligned projects from the candidate data. Never include fewer than 2 projects.
+- Always include a Skills section with the strongest JD-relevant subset supported by the user's data.
+- Include research only if it is materially relevant to the JD.
+- Include certifications and awards only if they are relevant and space permits.
+- Include extracurriculars only if they add meaningful JD-relevant evidence and space permits.
+- For each degree, include at most 3 coursework items, chosen specifically for JD relevance.
+- Do not include irrelevant sections just to fill space.
+- If space is tight, cut weaker optional sections before cutting the mandatory core sections.
+- Skills should be curated to the strongest JD-relevant subset supported by the user's data, not an exhaustive inventory.
 
 ${templateText}
 `;

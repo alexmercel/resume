@@ -902,9 +902,5 @@ export function DataFormDispatcher({ activeFile, rawMarkdown, onSave, onPreview,
        : fallback;
    }
    
-   return (
-      <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>
-         No specialized form manager available for {activeFile}.
-      </div>
-   );
+   return fallback;
 }
