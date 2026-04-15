@@ -1607,7 +1607,16 @@ function ProfileSettingsView({ appConfig }) {
 }
 
 function DataManagementView() {
-  const [activeFile, setActiveFile] = useState('projects.md');
+  const dataFiles = [
+    { fileName: 'projects.md', label: 'Projects' },
+    { fileName: 'workex.md', label: 'Experience' },
+    { fileName: 'education.md', label: 'Education' },
+    { fileName: 'skills.md', label: 'Skills' },
+    { fileName: 'research.md', label: 'Research' },
+    { fileName: 'certification.md', label: 'Certifications' },
+    { fileName: 'extracurricular.md', label: 'Extracurriculars' }
+  ];
+  const [activeFile, setActiveFile] = useState(dataFiles[0].fileName);
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
 
@@ -1663,8 +1672,6 @@ function DataManagementView() {
       .catch(() => setStatus('Error discarding'));
   };
 
-  const files = ['projects.md', 'workex.md', 'education.md', 'skills.md'];
-
   return (
     <div className="glass-panel" style={{height: 'calc(100vh - 120px)'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
@@ -1676,13 +1683,16 @@ function DataManagementView() {
       </p>
       <div style={{display: 'flex', gap: '1rem', height: '100%', minHeight: 0}}>
         <div style={{width: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
-          {files.map(file => (
+          {dataFiles.map(({ fileName, label }) => (
             <div 
-              key={file}
-              className={`nav-item ${activeFile === file ? 'active' : ''}`}
-              onClick={() => setActiveFile(file)}
+              key={fileName}
+              className={`nav-item ${activeFile === fileName ? 'active' : ''}`}
+              onClick={() => setActiveFile(fileName)}
             >
-              {file}
+              <div style={{display: 'flex', flexDirection: 'column', gap: '0.15rem'}}>
+                <span>{label}</span>
+                <span style={{fontSize: '0.72rem', color: 'var(--text-secondary)'}}>{fileName}</span>
+              </div>
             </div>
           ))}
         </div>
