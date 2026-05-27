@@ -48,12 +48,23 @@ export const PROVIDERS = [
 
 const PROVIDER_MAP = new Map(PROVIDERS.map((provider) => [provider.id, provider]));
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function requireApiKey(apiKey, providerName) {
   const trimmed = String(apiKey || '').trim();
   if (!trimmed) {
     throw new Error(`No ${providerName} API key is configured for this account.`);
   }
   return trimmed;
+}
+
+function buildProviderError(response, errorText, fallbackMessage) {
+  const error = new Error(errorText || fallbackMessage);
+  error.status = response.status;
+  error.responseText = errorText || '';
+  return error;
 }
 
 function getGoogleGenerateUrl(model, apiKey) {
@@ -76,7 +87,7 @@ async function googleGenerateText({ apiKey, model, prompt }) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Gemini request failed.');
+    throw buildProviderError(response, errorText, 'Gemini request failed.');
   }
 
   const data = await response.json();
@@ -105,7 +116,7 @@ async function googleGenerateWithInlineFile({ apiKey, model, prompt, mimeType, d
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Gemini inline file request failed.');
+    throw buildProviderError(response, errorText, 'Gemini inline file request failed.');
   }
 
   const result = await response.json();
@@ -117,7 +128,7 @@ async function googleListModels(apiKey) {
   const response = await fetch(getGoogleModelsUrl(key));
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Failed to list Gemini models.');
+    throw buildProviderError(response, errorText, 'Failed to list Gemini models.');
   }
 
   const data = await response.json();
@@ -152,7 +163,7 @@ async function openAiGenerateText({ apiKey, model, prompt }) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'OpenAI request failed.');
+    throw buildProviderError(response, errorText, 'OpenAI request failed.');
   }
 
   const data = await response.json();
@@ -179,7 +190,7 @@ async function openAiListModels(apiKey) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Failed to list OpenAI models.');
+    throw buildProviderError(response, errorText, 'Failed to list OpenAI models.');
   }
 
   const data = await response.json();
@@ -218,7 +229,7 @@ async function anthropicGenerateText({ apiKey, model, prompt }) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Anthropic request failed.');
+    throw buildProviderError(response, errorText, 'Anthropic request failed.');
   }
 
   const data = await response.json();
@@ -239,7 +250,7 @@ async function anthropicListModels(apiKey) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Failed to list Anthropic models.');
+    throw buildProviderError(response, errorText, 'Failed to list Anthropic models.');
   }
 
   const data = await response.json();
@@ -270,6 +281,55 @@ export function getFallbackModels(providerId) {
   return [...getProvider(providerId).models];
 }
 
+function isRetryableProviderError(error) {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+
+  if ([408, 409, 425, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+
+  return [
+    'high demand',
+    'try again later',
+    'temporarily unavailable',
+    'temporarily overloaded',
+    'unavailable',
+    'rate limit',
+    'resource exhausted',
+    'overloaded'
+  ].some((needle) => message.includes(needle));
+}
+
+function buildModelAttemptOrder(providerId, preferredModel) {
+  const provider = getProvider(providerId);
+  const preferred = String(preferredModel || provider.defaultModel || '').trim();
+  const deduped = new Map();
+
+  [preferred, ...provider.models].forEach((modelId) => {
+    const normalized = String(modelId || '').trim();
+    if (!normalized || deduped.has(normalized)) return;
+    deduped.set(normalized, normalized);
+  });
+
+  return [...deduped.values()];
+}
+
+async function generateOnce({ providerId, apiKey, model, prompt }) {
+  const provider = getProvider(providerId);
+  if (provider.id === 'google') return googleGenerateText({ apiKey, model, prompt });
+  if (provider.id === 'openai') return openAiGenerateText({ apiKey, model, prompt });
+  return anthropicGenerateText({ apiKey, model, prompt });
+}
+
+export function isRetryableProviderErrorForTesting(error) {
+  return isRetryableProviderError(error);
+}
+
+export function buildModelAttemptOrderForTesting(providerId, preferredModel) {
+  return buildModelAttemptOrder(providerId, preferredModel);
+}
+
 export async function listModelsForProvider({ providerId, apiKey }) {
   const provider = getProvider(providerId);
   if (provider.id === 'google') return googleListModels(apiKey);
@@ -279,9 +339,36 @@ export async function listModelsForProvider({ providerId, apiKey }) {
 
 export async function generateTextWithProvider({ providerId, apiKey, model, prompt }) {
   const provider = getProvider(providerId);
-  if (provider.id === 'google') return googleGenerateText({ apiKey, model, prompt });
-  if (provider.id === 'openai') return openAiGenerateText({ apiKey, model, prompt });
-  return anthropicGenerateText({ apiKey, model, prompt });
+  const modelsToTry = buildModelAttemptOrder(provider.id, model);
+  let lastError = null;
+
+  for (const candidateModel of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        if (candidateModel !== model || attempt > 0) {
+          console.warn(`[provider-fallback] trying ${provider.name} model "${candidateModel}" (attempt ${attempt + 1})`);
+        }
+        return await generateOnce({
+          providerId: provider.id,
+          apiKey,
+          model: candidateModel,
+          prompt
+        });
+      } catch (error) {
+        lastError = error;
+        if (!isRetryableProviderError(error)) {
+          throw error;
+        }
+        if (attempt < 1) {
+          await sleep(500 * (attempt + 1));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error(`${provider.name} request failed.`);
 }
 
 export async function generateWithUploadedResume({
