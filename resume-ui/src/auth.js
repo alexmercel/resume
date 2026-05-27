@@ -39,6 +39,20 @@ export function getStoredAccessToken() {
   return getStoredSession()?.access_token || '';
 }
 
+export function buildAuthedApiUrl(pathname) {
+  const normalizedPath = String(pathname || '').trim();
+  const accessToken = getStoredAccessToken();
+  if (!normalizedPath || !accessToken) return normalizedPath;
+
+  try {
+    const url = new URL(normalizedPath, window.location.origin);
+    url.searchParams.set('access_token', accessToken);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return normalizedPath;
+  }
+}
+
 export function installApiFetchInterceptor() {
   if (fetchInterceptorInstalled || typeof window === 'undefined') return;
   fetchInterceptorInstalled = true;

@@ -12,6 +12,7 @@ The app now supports two modes:
 
 - legacy local mode: file-backed data with no auth
 - production mode: Supabase Auth + Postgres for user data, encrypted per-user provider keys, and user-scoped generated artifacts
+- Vercel mode: Supabase for text + metadata, Vercel Blob for PDFs, and a remote LaTeX compile service
 - optional worker mode: a dedicated LaTeX worker compiles PDFs from a queued job table
 
 When Supabase is not configured, the app stays in legacy local mode so existing behavior does not break.
@@ -217,13 +218,19 @@ With Supabase enabled, editable user data is stored in Postgres:
 - `public.generation_history`: generation metadata and cover letter content
 - `public.generation_jobs`: queued LaTeX compilation jobs
 
-Generated artifacts remain file-based by design:
+Generated artifacts are stored in one of two ways:
 
-- PDFs
-- `.tex` files
-- `.txt` cover letters
+- local / worker deployments:
+  - PDFs
+  - `.tex` files
+  - `.txt` cover letters
+- Vercel deployments:
+  - `generation_history.tex_content` stores editable TeX source as text
+  - `generation_history.cover_letter_content` stores cover letters as text
+  - Vercel Blob stores PDF binaries
+  - `generation_history.pdf_blob_path` / `pdf_blob_url` store PDF metadata
 
-In authenticated mode those files are stored under `Runtime_Data/users/<userId>/...`.
+In authenticated local/worker mode, filesystem artifacts are stored under `Runtime_Data/users/<userId>/...`.
 
 ## Production Setup
 
@@ -238,10 +245,41 @@ In authenticated mode those files are stored under `Runtime_Data/users/<userId>/
    - `GOOGLE_AI_API_KEY`
    - `OPENAI_API_KEY`
    - `ANTHROPIC_API_KEY`
-5. Optional for production worker mode:
-   - set `LATEX_QUEUE_MODE=worker`
-   - start the worker with `npm run start:worker`
+5. Choose one PDF compilation/storage strategy:
+   - Vercel mode:
+     - set `BLOB_READ_WRITE_TOKEN`
+     - set `LATEX_COMPILER_MODE=remote`
+     - optionally override `LATEX_REMOTE_BASE_URL` and `LATEX_REMOTE_COMMAND`
+   - self-hosted worker mode:
+     - set `LATEX_QUEUE_MODE=worker`
+     - start the worker with `npm run start:worker`
 6. Start the app. When all Supabase vars are present, the UI switches into authenticated multi-user mode automatically.
+
+## Vercel Deployment
+
+Set the Vercel project root to `resume-ui`.
+
+For a Vercel deployment, configure:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `APP_ENCRYPTION_KEY`
+- `BLOB_READ_WRITE_TOKEN`
+- `LATEX_COMPILER_MODE=remote`
+- optionally:
+  - `LATEX_REMOTE_BASE_URL`
+  - `LATEX_REMOTE_COMMAND`
+  - `GOOGLE_AI_API_KEY`
+  - `OPENAI_API_KEY`
+  - `ANTHROPIC_API_KEY`
+
+The repo includes:
+
+- [resume-ui/api/[...path].mjs](/Users/jaishah/Documents/Coding/Resume%20-%20Latex/resume/resume-ui/api/%5B...path%5D.mjs:1): Vercel Function entrypoint that reuses the API handler
+- [resume-ui/vercel.json](/Users/jaishah/Documents/Coding/Resume%20-%20Latex/resume/resume-ui/vercel.json:1): function config for the API routes
+
+This mode keeps PDFs out of Supabase and avoids a persistent LaTeX worker on Vercel.
 
 ## Docker Deployment
 

@@ -40,6 +40,44 @@ function InputField({ label, value, onChange, placeholder, isTextarea }) {
   );
 }
 
+function RawMarkdownManager({ rawMarkdown, onSave, onDiscard }) {
+  const [content, setContent] = useState(rawMarkdown || '');
+
+  useEffect(() => {
+    setContent(rawMarkdown || '');
+  }, [rawMarkdown]);
+
+  return (
+    <div className="section-scroll">
+      <div className="action-row">
+        <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
+        <button className="primary-button" onClick={() => onSave(content)}>Save Markdown</button>
+      </div>
+      <div className="surface-block" style={{ padding: '1.25rem' }}>
+        <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.6 }}>
+          This file is using raw markdown mode because the imported content does not fully match the structured form layout yet.
+        </div>
+        <textarea
+          style={{
+            width: '100%',
+            minHeight: '60vh',
+            padding: '1rem',
+            background: 'rgba(0,0,0,0.2)',
+            border: '1px solid var(--border-color)',
+            color: '#fff',
+            resize: 'vertical',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+            lineHeight: '1.6'
+          }}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Markdown content will appear here."
+        />
+      </div>
+    </div>
+  );
+}
+
 function BulletList({ bullets, setBullets, label }) {
   const updateBullet = (idx, valObj) => {
     const newB = [...bullets];
@@ -318,7 +356,7 @@ export function ProfileManager({ rawMarkdown, onSave, onDiscard }) {
     <div className="section-scroll">
       <div className="action-row">
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       <FormCard title="Personal Identity Headers">
          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -390,7 +428,7 @@ function ProjectsManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addProj}>+ Add Project</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {projects.map(p => (
         <FormCard key={p.id} title={p.title} onRemove={() => removeProj(p.id)}>
@@ -516,7 +554,7 @@ function EducationManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addEd}>+ Add Education</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {education.map(e => (
         <FormCard key={e.id} title={e.school} onRemove={() => removeEd(e.id)}>
@@ -655,7 +693,7 @@ function SkillsManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addSkill}>+ Add Header Layer</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {skills.map(s => (
         <FormCard key={s.id} title={s.category} onRemove={() => removeSkill(s.id)}>
@@ -785,7 +823,7 @@ function WorkExManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
         <AIHighlightButton getMarkdown={getMarkdown} onPreview={onPreview} />
         <button className="danger-button" onClick={onDiscard}>Discard Current Changes</button>
         <button className="secondary-button" onClick={addComp}>+ Add Company</button>
-        <button className="primary-button" onClick={handleSave}>Save Config to Disk</button>
+        <button className="primary-button" onClick={handleSave}>Save Changes</button>
       </div>
       {companies.map(c => (
         <FormCard key={c.id} title={c.company} onRemove={() => removeComp(c.id)}>
@@ -826,15 +864,43 @@ function WorkExManager({ rawMarkdown, onSave, onPreview, onDiscard }) {
 // MAIN EXPORT DISPATCHER
 // ============================================
 export function DataFormDispatcher({ activeFile, rawMarkdown, onSave, onPreview, onDiscard }) {
-   if (activeFile.includes('profile')) return <ProfileManager rawMarkdown={rawMarkdown} onSave={onSave} onDiscard={onDiscard} />;
-   if (activeFile.includes('projects')) return <ProjectsManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />;
-   if (activeFile.includes('education')) return <EducationManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />;
-   if (activeFile.includes('skills')) return <SkillsManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />;
-   if (activeFile.includes('workex')) return <WorkExManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />;
+   const content = String(rawMarkdown || '').trim();
+   const fallback = <RawMarkdownManager rawMarkdown={rawMarkdown} onSave={onSave} onDiscard={onDiscard} />;
+
+   if (activeFile.includes('profile')) {
+     const hasProfileFields = /-\s*\*\*(Name|Location|Phone|Email|LinkedIn|GitHub|Portfolio):\*\*/i.test(content);
+     return hasProfileFields || !content
+       ? <ProfileManager rawMarkdown={rawMarkdown} onSave={onSave} onDiscard={onDiscard} />
+       : fallback;
+   }
+
+   if (activeFile.includes('projects')) {
+     const hasProjectSections = /^##\s+/m.test(content);
+     return hasProjectSections || !content
+       ? <ProjectsManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />
+       : fallback;
+   }
+
+   if (activeFile.includes('education')) {
+     const hasEducationSections = /^##\s+/m.test(content);
+     return hasEducationSections || !content
+       ? <EducationManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />
+       : fallback;
+   }
+
+   if (activeFile.includes('skills')) {
+     const hasSkillSections = /^##\s+/m.test(content);
+     return hasSkillSections || !content
+       ? <SkillsManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />
+       : fallback;
+   }
+
+   if (activeFile.includes('workex')) {
+     const hasWorkSections = /^##\s+/m.test(content);
+     return hasWorkSections || !content
+       ? <WorkExManager rawMarkdown={rawMarkdown} onSave={onSave} onPreview={onPreview} onDiscard={onDiscard} />
+       : fallback;
+   }
    
-   return (
-      <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>
-         No specialized form manager available for {activeFile}.
-      </div>
-   );
+   return fallback;
 }

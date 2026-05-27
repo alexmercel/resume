@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { DataFormDispatcher, ProfileManager } from './DataForms';
-import { clearStoredSession, getBrowserSupabaseClient, setStoredSession } from './auth';
+import {
+  buildAuthedApiUrl,
+  clearStoredSession,
+  getBrowserSupabaseClient,
+  installApiFetchInterceptor,
+  setStoredSession
+} from './auth';
 import './index.css';
 
 const setupMonaco = (monaco) => {
@@ -35,6 +41,23 @@ function LoadingScreen({ label }) {
   );
 }
 
+function WorkspaceErrorScreen({ message, onRetry }) {
+  return (
+    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel" style={{ maxWidth: '540px', width: '100%', margin: 0 }}>
+        <div className="soft-pill" style={{ marginBottom: '1rem', alignSelf: 'flex-start' }}>Workspace setup issue</div>
+        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>We couldn&apos;t prepare your account yet</h2>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {message || 'The backend did not finish initializing your workspace. Try again and we’ll retry the bootstrap step.'}
+        </p>
+        <div className="action-row" style={{ justifyContent: 'flex-start', marginTop: '1.25rem', marginBottom: 0 }}>
+          <button className="primary-button" onClick={onRetry}>Retry setup</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthGate({ supabaseClient }) {
   const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
@@ -59,7 +82,13 @@ function AuthGate({ supabaseClient }) {
     try {
       const response = mode === 'signin'
         ? await supabaseClient.auth.signInWithPassword({ email: email.trim(), password })
-        : await supabaseClient.auth.signUp({ email: email.trim(), password });
+        : await supabaseClient.auth.signUp({ 
+            email: email.trim(), 
+            password,
+            options: {
+              emailRedirectTo: window.location.origin
+            }
+          });
 
       if (response.error) throw response.error;
       if (response.data?.session) {
@@ -79,54 +108,79 @@ function AuthGate({ supabaseClient }) {
   };
 
   return (
-    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-      <div className="glass-panel" style={{ maxWidth: '520px', width: '100%', margin: 0 }}>
-        <div className="soft-pill" style={{ marginBottom: '1rem', alignSelf: 'flex-start' }}>Secure multi-user mode</div>
-        <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>Sign in to your workspace</h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.6 }}>
-          Your resume data, generated artifacts, and provider keys are now scoped per account when Supabase is enabled.
-        </p>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-          <button
-            className={mode === 'signin' ? 'primary-button' : 'secondary-button'}
-            onClick={() => setMode('signin')}
-            style={{ flex: 1 }}
-          >
-            Sign In
-          </button>
-          <button
-            className={mode === 'signup' ? 'primary-button' : 'secondary-button'}
-            onClick={() => setMode('signup')}
-            style={{ flex: 1 }}
-          >
-            Create Account
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-          />
-          <button className="primary-button" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
-          </button>
-        </div>
-
-        {status && (
-          <div className={`status-banner ${status.toLowerCase().includes('success') || status.toLowerCase().includes('confirm') ? 'info' : 'warning'}`} style={{ marginTop: '1rem' }}>
-            {status}
+    <div className="app-container" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel" style={{ maxWidth: '1040px', width: '100%', margin: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 460px)', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
+          <div className="soft-pill" style={{ alignSelf: 'flex-start' }}>Secure multi-user workspace</div>
+          <h1 className="panel-title" style={{ margin: 0, fontSize: '2.4rem', lineHeight: 1.1 }}>Sign in, initialize your account, then step into onboarding.</h1>
+          <p style={{ color: 'var(--text-secondary)', margin: 0, lineHeight: 1.7, maxWidth: '60ch' }}>
+            Your Supabase account is now the front door. After sign-in, the backend provisions your private workspace, creates your database-backed resume documents, and then takes you straight into onboarding if anything still needs to be filled in.
+          </p>
+          <div style={{ display: 'grid', gap: '0.8rem', marginTop: '0.25rem' }}>
+            {[
+              '1. Authenticate with Supabase using email and password.',
+              '2. Initialize your private settings and empty resume documents in the backend.',
+              '3. Continue into onboarding, then unlock the full app.'
+            ].map((step) => (
+              <div key={step} className="surface-block" style={{ padding: '0.9rem 1rem' }}>
+                {step}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+
+        <div className="surface-block" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Account access</div>
+            <h2 className="panel-title" style={{ marginBottom: '0.75rem' }}>{mode === 'signin' ? 'Sign in to continue' : 'Create your account'}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.6 }}>
+              Use the same email each time so your generated resumes, tracker history, and profile data stay attached to one workspace.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              className={mode === 'signin' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setMode('signin')}
+              style={{ flex: 1 }}
+            >
+              Sign In
+            </button>
+            <button
+              className={mode === 'signup' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setMode('signup')}
+              style={{ flex: 1 }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            />
+            <button className="primary-button" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Working...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+            </button>
+          </div>
+
+          {status && (
+            <div className={`status-banner ${status.toLowerCase().includes('success') || status.toLowerCase().includes('confirm') ? 'info' : 'warning'}`}>
+              {status}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -138,6 +192,11 @@ function App() {
   const [authState, setAuthState] = useState({
     ready: false,
     user: null
+  });
+  const [workspaceState, setWorkspaceState] = useState({
+    loading: true,
+    error: '',
+    refreshToken: 0
   });
   const [activeTab, setActiveTab] = useState('generator');
   const [onboardingState, setOnboardingState] = useState({
@@ -151,8 +210,8 @@ function App() {
   });
   const [generatorState, setGeneratorState] = useState({
     jd: '',
-    template: 'Software_Gen.tex',
-    templatesList: ['Software_Gen.tex', 'Hardware_Gen.tex', 'DA_Gen.tex'],
+    template: 'template1.tex',
+    templatesList: ['template1.tex'],
     output: null,
     pdfs: [],
     metrics: null,
@@ -162,6 +221,7 @@ function App() {
     clOpen: false,
     hasGeneratedResume: false
   });
+  const authUserId = authState.user?.id || '';
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +238,7 @@ function App() {
           return;
         }
 
+        installApiFetchInterceptor();
         const client = getBrowserSupabaseClient(data.supabase);
         setSupabaseClient(client);
 
@@ -211,26 +272,45 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authState.user);
+    const canLoadWorkspace = appConfig && authState.ready && (!appConfig.authEnabled || authUserId);
     if (!canLoadWorkspace) return;
+    let cancelled = false;
+    const endpoint = appConfig.authEnabled ? '/api/workspace-bootstrap' : '/api/onboarding-status';
+    const requestInit = appConfig.authEnabled ? { method: 'POST' } : undefined;
 
-    fetch('/api/onboarding-status')
+    setWorkspaceState((prev) => ({ ...prev, loading: true, error: '' }));
+    setOnboardingState((prev) => ({ ...prev, loading: true }));
+
+    fetch(endpoint, requestInit)
       .then(res => res.json())
       .then(data => {
+        if (cancelled) return;
+        const onboardingPayload = appConfig.authEnabled ? data.onboarding : data;
         setOnboardingState({
           loading: false,
-          needsOnboarding: !!data.needsOnboarding,
-          fileStatuses: data.fileStatuses || [],
-          settings: data.settings || { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
-          models: data.models || [],
-          providers: data.providers || [],
-          pdflatex: data.pdflatex || { installed: false, version: '' }
+          needsOnboarding: !!onboardingPayload?.needsOnboarding,
+          fileStatuses: onboardingPayload?.fileStatuses || [],
+          settings: onboardingPayload?.settings || { provider: 'google', selectedModel: 'gemini-2.5-flash-lite', dailyApplicationGoal: 5 },
+          models: onboardingPayload?.models || [],
+          providers: onboardingPayload?.providers || [],
+          pdflatex: onboardingPayload?.pdflatex || { installed: false, version: '' }
         });
+        setWorkspaceState((prev) => ({ ...prev, loading: false, error: '' }));
       })
-      .catch(() => {
+      .catch((error) => {
+        if (cancelled) return;
         setOnboardingState((prev) => ({ ...prev, loading: false }));
+        setWorkspaceState((prev) => ({
+          ...prev,
+          loading: false,
+          error: error?.message || 'Failed to prepare your workspace.'
+        }));
       });
-  }, [appConfig, authState.ready, authState.user]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appConfig, authState.ready, authUserId, workspaceState.refreshToken]);
 
   if (!appConfig || !authState.ready) {
     return <LoadingScreen label="Loading production-ready workspace..." />;
@@ -238,6 +318,19 @@ function App() {
 
   if (appConfig.authEnabled && !authState.user) {
     return <AuthGate supabaseClient={supabaseClient} />;
+  }
+
+  if (workspaceState.loading) {
+    return <LoadingScreen label="Preparing your workspace and checking onboarding..." />;
+  }
+
+  if (workspaceState.error) {
+    return (
+      <WorkspaceErrorScreen
+        message={workspaceState.error}
+        onRetry={() => setWorkspaceState((prev) => ({ ...prev, refreshToken: prev.refreshToken + 1 }))}
+      />
+    );
   }
 
   const handleSignOut = async () => {
@@ -312,12 +405,6 @@ function App() {
           >
             🎯 Apply Tracker
           </div>
-          <div 
-            className={`nav-item ${activeTab === 'opportunities' ? 'active' : ''}`}
-            onClick={() => setActiveTab('opportunities')}
-          >
-            🔎 Opportunities
-          </div>
         </aside>
         
         {activeTab === 'generator' && <GeneratorView state={generatorState} setState={setGeneratorState} appConfig={appConfig} />}
@@ -327,7 +414,6 @@ function App() {
         {activeTab === 'generic' && <TemplatesView type="generic" />}
         {activeTab === 'history' && <HistoryView appConfig={appConfig} />}
         {activeTab === 'tracker' && <ApplicationsView />}
-        {activeTab === 'opportunities' && <OpportunitiesView />}
         
       </main>
 
@@ -351,22 +437,28 @@ function App() {
   );
 }
 
-function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true }) {
+function getCompilerModeLabel(compilerMode) {
+  return compilerMode === 'remote' ? 'Remote Compiler' : 'Worker Mode';
+}
+
+function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true, compilerMode = 'worker' }) {
   return (
     <div className="surface-block" style={{padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
         <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
-          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : getCompilerModeLabel(compilerMode)}
         </span>
       </div>
       {!requiresLocalPdflatex && (
         <>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            PDF compilation is routed to the dedicated LaTeX worker in production mode.
+            {compilerMode === 'remote'
+              ? 'PDF compilation is routed through the managed remote LaTeX compiler in production mode.'
+              : 'PDF compilation is routed to the dedicated LaTeX worker in production mode.'}
           </div>
           <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-            This web app does not need a local <code>pdflatex</code> installation when worker mode is enabled.
+            This web app does not need a local <code>pdflatex</code> installation when {compilerMode === 'remote' ? 'remote compiler mode' : 'worker mode'} is enabled.
           </div>
         </>
       )}
@@ -389,7 +481,7 @@ function LatexInstallHelp({ pdflatexStatus, requiresLocalPdflatex = true }) {
   );
 }
 
-function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
+function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true, compilerMode = 'worker' }) {
   const [platformInfo, setPlatformInfo] = useState({
     label: 'Your system',
     recommendedDistribution: 'MiKTeX or TeX Live',
@@ -413,7 +505,9 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
   const runReadinessCheck = () => {
     if (!requiresLocalPdflatex) {
       setCheckState({
-        status: 'Worker mode is enabled. Run the readiness check inside the LaTeX worker image or container instead.',
+        status: compilerMode === 'remote'
+          ? 'Remote compiler mode is enabled. Validate the external compile service and Blob storage instead of this local machine.'
+          : 'Worker mode is enabled. Run the readiness check inside the LaTeX worker image or container instead.',
         output: '',
         success: true
       });
@@ -444,7 +538,7 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       <div style={{display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center'}}>
         <div style={{fontWeight: 700}}>LaTeX / PDF Engine</div>
         <span className={`soft-pill ${pdflatexStatus.installed || !requiresLocalPdflatex ? 'success' : ''}`}>
-          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : 'Worker Mode'}
+          {requiresLocalPdflatex ? (pdflatexStatus.installed ? 'Installed' : 'Missing') : getCompilerModeLabel(compilerMode)}
         </span>
       </div>
       <div className="latex-setup-grid">
@@ -482,7 +576,9 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       </div>
       {!requiresLocalPdflatex && (
         <div style={{color: 'var(--text-secondary)', lineHeight: 1.6}}>
-          This environment is configured to offload PDF compilation to the LaTeX worker. The installer links and readiness check are only needed for the worker image or any machine that runs the worker process.
+          {compilerMode === 'remote'
+            ? 'This environment is configured to offload PDF compilation to the remote compiler service. The installer links and readiness check are only needed for local inline compilation environments.'
+            : 'This environment is configured to offload PDF compilation to the LaTeX worker. The installer links and readiness check are only needed for the worker image or any machine that runs the worker process.'}
         </div>
       )}
       {requiresLocalPdflatex && pdflatexStatus.installed && (
@@ -504,7 +600,7 @@ function LatexSetupWizard({ pdflatexStatus, requiresLocalPdflatex = true }) {
       )}
       <div className="action-row" style={{justifyContent: 'flex-start', marginBottom: 0}}>
         <button className="primary-button" onClick={runReadinessCheck}>
-          {requiresLocalPdflatex ? 'Run Readiness Check' : 'How To Validate Worker'}
+          {requiresLocalPdflatex ? 'Run Readiness Check' : (compilerMode === 'remote' ? 'How To Validate Remote Mode' : 'How To Validate Worker')}
         </button>
       </div>
       {checkState.status && (
@@ -675,7 +771,7 @@ function OnboardingOverlay({ appConfig, onboardingState, onComplete }) {
               </div>
             )}
 
-            <LatexSetupWizard pdflatexStatus={pdflatex} requiresLocalPdflatex={requiresLocalPdflatex} />
+            <LatexSetupWizard pdflatexStatus={pdflatex} requiresLocalPdflatex={requiresLocalPdflatex} compilerMode={appConfig?.latex?.mode} />
           </div>
 
           <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
@@ -892,7 +988,7 @@ function GeneratorView({ state, setState, appConfig }) {
       clearInterval(pollInterval);
       updateGeneratorState({
         isGenerating: false,
-        output: 'Failed to connect to local API.'
+        output: 'Failed to connect to the API.'
       });
     });
   };
@@ -1086,11 +1182,13 @@ function GeneratorView({ state, setState, appConfig }) {
             </button>
           </div>
           {!pdflatexStatus.installed && requiresLocalPdflatex && (
-            <LatexInstallHelp pdflatexStatus={pdflatexStatus} />
+            <LatexInstallHelp pdflatexStatus={pdflatexStatus} compilerMode={latexConfig.mode} />
           )}
           {!requiresLocalPdflatex && (
             <div className="status-banner info">
-              PDF compilation is configured for the dedicated LaTeX worker, so this web app does not need a local `pdflatex` install in production.
+              {latexConfig.mode === 'remote'
+                ? 'PDF compilation is configured for the remote LaTeX compiler, so this web app does not need a local `pdflatex` install in production.'
+                : 'PDF compilation is configured for the dedicated LaTeX worker, so this web app does not need a local `pdflatex` install in production.'}
             </div>
           )}
           {/* Live status strip while running */}
@@ -1134,7 +1232,7 @@ function GeneratorView({ state, setState, appConfig }) {
             {latestPdf && pdfOpen && (
               <div style={{ marginTop: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden', minHeight: latestPdf ? '700px' : '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
                 {latestPdf ? (
-                  <iframe src={`/api/output/${latestPdf.name}?req=${latestPdf.time}`} style={{width:'100%',height:'700px',border:'none'}} title="Resume Preview" />
+                  <iframe src={buildAuthedApiUrl(`/api/output/${latestPdf.name}?req=${latestPdf.time}`)} style={{width:'100%',height:'700px',border:'none'}} title="Resume Preview" />
                 ) : (
                   <div style={{ color: '#f59e0b', padding: '2rem', textAlign: 'center', lineHeight: 1.6 }}>Your resume is still syncing. Re-open this card in a moment.</div>
                 )}
@@ -1421,7 +1519,7 @@ function ProfileSettingsView({ appConfig }) {
         </p>
 
         <div className="surface-block" style={{padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-          <LatexInstallHelp pdflatexStatus={pdflatexStatus} requiresLocalPdflatex={requiresLocalPdflatex} />
+          <LatexInstallHelp pdflatexStatus={pdflatexStatus} requiresLocalPdflatex={requiresLocalPdflatex} compilerMode={appConfig?.latex?.mode} />
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.35rem'}}>
             <label style={{fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold'}}>Provider</label>
@@ -1515,7 +1613,16 @@ function ProfileSettingsView({ appConfig }) {
 }
 
 function DataManagementView() {
-  const [activeFile, setActiveFile] = useState('projects.md');
+  const dataFiles = [
+    { fileName: 'projects.md', label: 'Projects' },
+    { fileName: 'workex.md', label: 'Experience' },
+    { fileName: 'education.md', label: 'Education' },
+    { fileName: 'skills.md', label: 'Skills' },
+    { fileName: 'research.md', label: 'Research' },
+    { fileName: 'certification.md', label: 'Certifications' },
+    { fileName: 'extracurricular.md', label: 'Extracurriculars' }
+  ];
+  const [activeFile, setActiveFile] = useState(dataFiles[0].fileName);
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
 
@@ -1571,8 +1678,6 @@ function DataManagementView() {
       .catch(() => setStatus('Error discarding'));
   };
 
-  const files = ['projects.md', 'workex.md', 'education.md', 'skills.md'];
-
   return (
     <div className="glass-panel" style={{height: 'calc(100vh - 120px)'}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
@@ -1584,13 +1689,16 @@ function DataManagementView() {
       </p>
       <div style={{display: 'flex', gap: '1rem', height: '100%', minHeight: 0}}>
         <div style={{width: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
-          {files.map(file => (
+          {dataFiles.map(({ fileName, label }) => (
             <div 
-              key={file}
-              className={`nav-item ${activeFile === file ? 'active' : ''}`}
-              onClick={() => setActiveFile(file)}
+              key={fileName}
+              className={`nav-item ${activeFile === fileName ? 'active' : ''}`}
+              onClick={() => setActiveFile(fileName)}
             >
-              {file}
+              <div style={{display: 'flex', flexDirection: 'column', gap: '0.15rem'}}>
+                <span>{label}</span>
+                <span style={{fontSize: '0.72rem', color: 'var(--text-secondary)'}}>{fileName}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -1610,6 +1718,7 @@ function DataManagementView() {
 
 function TemplatesView({ type = 'wireframes' }) {
   const [files, setFiles] = useState([]);
+  const [templateEntries, setTemplateEntries] = useState({});
   const [activeFile, setActiveFile] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
@@ -1625,6 +1734,9 @@ function TemplatesView({ type = 'wireframes' }) {
       .then(data => {
          if (data.templates) {
             setFiles(data.templates);
+            setTemplateEntries(
+              Object.fromEntries((data.entries || []).map((entry) => [entry.name, entry]))
+            );
             if (data.templates.length > 0 && (!data.templates.includes(activeFile))) {
                setActiveFile(data.templates[0]);
             }
@@ -1645,6 +1757,13 @@ function TemplatesView({ type = 'wireframes' }) {
             if (data.content !== undefined) {
               setContent(data.content);
               setLastWorkingContent(data.content);
+              setTemplateEntries((prev) => ({
+                ...prev,
+                [activeFile]: {
+                  name: activeFile,
+                  source: data.source || prev[activeFile]?.source || 'shared'
+                }
+              }));
             } else {
               setContent('Error loading file.');
               setLastWorkingContent('');
@@ -1667,6 +1786,13 @@ function TemplatesView({ type = 'wireframes' }) {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
+         setTemplateEntries((prev) => ({
+           ...prev,
+           [activeFile]: {
+             name: activeFile,
+             source: data.source || 'user'
+           }
+         }));
          setStatus('Saved!');
          setTimeout(() => setStatus(''), 2000);
          return true;
@@ -1683,27 +1809,28 @@ function TemplatesView({ type = 'wireframes' }) {
   const handleCompile = async () => {
     setCompileStatus('Compiling...');
     setCompileError('');
-    const saved = await handleSave();
-    if (saved) {
-       fetch(`/api/compile-template/${type}/${activeFile}`, { method: 'POST' })
-         .then(res => res.json())
-         .then(compData => {
-            if (compData.success) {
-              setCompileStatus('Success!');
-              setCompileError('');
-              setLastWorkingContent(content);
-              setTimeout(() => setCompileStatus(''), 2000);
-              setRenderTimestamp(Date.now()); // refresh iframe
-            } else {
-              setCompileStatus('Error Compiling');
-              setCompileError(compData.error || 'Failed to compile template preview.');
-            }
-         })
-         .catch((error) => {
-           setCompileStatus('Error Compiling');
-           setCompileError(error.message || 'Failed to compile template preview.');
-         });
-    }
+    fetch(`/api/compile-template/${type}/${activeFile}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    })
+      .then(res => res.json())
+      .then(compData => {
+        if (compData.success) {
+          setCompileStatus('Success!');
+          setCompileError('');
+          setLastWorkingContent(content);
+          setTimeout(() => setCompileStatus(''), 2000);
+          setRenderTimestamp(Date.now()); // refresh iframe
+        } else {
+          setCompileStatus('Error Compiling');
+          setCompileError(compData.error || 'Failed to compile template preview.');
+        }
+      })
+      .catch((error) => {
+        setCompileStatus('Error Compiling');
+        setCompileError(error.message || 'Failed to compile template preview.');
+      });
   };
 
   const handleUndoCompileFailure = () => {
@@ -1750,7 +1877,7 @@ function TemplatesView({ type = 'wireframes' }) {
     <div className="glass-panel" style={{height: 'calc(100vh - 120px)'}}>
 	      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
 	        <h2 className="panel-title" style={{margin: 0}}>
-	           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Generic Ready Resumes'}
+	           {type === 'wireframes' ? 'LaTeX Wireframe Templates' : 'Private Generic Resumes'}
 	        </h2>
 	        <div style={{display: 'flex', gap: '0.5rem'}}>
           <button className="secondary-button" onClick={handleSave} style={{padding: '0.5rem 1rem'}}>
@@ -1771,8 +1898,8 @@ function TemplatesView({ type = 'wireframes' }) {
 	      )}
 	      <p style={{color: 'var(--text-secondary)'}}>
 	        {type === 'wireframes' 
-	          ? 'Directly modify the structural `.tex` code for all AI generation wireframes.'
-	          : 'Manage and tweak your complete generic ready-to-use resume distributions.'}
+	          ? 'Starter wireframes are shared, but any edit or new template you save becomes private to your account.'
+	          : 'Generic resumes are private to your account only. Nothing in this area is shared across users.'}
       </p>
       <div style={{display: 'flex', gap: '1rem', height: '100%', minHeight: 0}}>
         {/* Left Sidebar */}
@@ -1783,7 +1910,12 @@ function TemplatesView({ type = 'wireframes' }) {
               className={`nav-item ${activeFile === file ? 'active' : ''}`}
               onClick={() => setActiveFile(file)}
             >
-              {file}
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center'}}>
+                <span>{file}</span>
+                <span className={`soft-pill ${templateEntries[file]?.source === 'user' ? 'success' : ''}`} style={{fontSize: '0.68rem'}}>
+                  {templateEntries[file]?.source === 'user' ? 'Private' : 'Starter'}
+                </span>
+              </div>
             </div>
           ))}
           <button className="secondary-button" onClick={handleNewTemplate} style={{ marginTop: '1rem', padding: '0.75rem', background: 'transparent', borderStyle: 'dashed', color: 'var(--text-secondary)' }}>
@@ -1822,7 +1954,7 @@ function TemplatesView({ type = 'wireframes' }) {
             )}
             {activeSubTab === 'preview' && (
               <iframe 
-                src={`/api/template-pdf/${type}/${activeFile}?req=${renderTimestamp}`}
+                src={buildAuthedApiUrl(`/api/template-pdf/${type}/${activeFile}?req=${renderTimestamp}`)}
                 style={{width: '100%', height: '100%', border: 'none', borderRadius: '4px'}}
                 title="Template Preview"
               />
@@ -1985,11 +2117,11 @@ function HistoryView({ appConfig }) {
                 {item.coverLetter ? 'Cover letter saved' : 'No cover letter saved'}
               </div>
               <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}} onClick={e => e.stopPropagation()}>
-                 <a href={`/api/output/${item.company}.pdf`} download className="primary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
+                 <a href={buildAuthedApiUrl(`/api/output/${item.company}.pdf`)} download className="primary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
                    ⬇ Download PDF
                  </a>
                  {item.coverLetterFile && (
-                   <a href={`/api/cover-letter/${item.coverLetterFile}`} download className="secondary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
+                   <a href={buildAuthedApiUrl(`/api/cover-letter/${item.coverLetterFile}`)} download className="secondary-button" style={{textDecoration: 'none', fontSize: '0.75rem', padding: '0.4rem 0.8rem'}}>
                      ⬇ Cover Letter
                    </a>
                  )}
@@ -2006,9 +2138,11 @@ function HistoryView({ appConfig }) {
            </div>
         ) : (
 	          <>
-              {latexConfig.mode === 'worker' && (
+              {latexConfig.mode !== 'inline' && (
                 <div className="status-banner info" style={{margin: '0 0 1rem 0'}}>
-                  Recompiles are queued to the dedicated LaTeX worker in production mode.
+                  {latexConfig.mode === 'remote'
+                    ? 'Recompiles are handled by the remote LaTeX compiler in production mode.'
+                    : 'Recompiles are queued to the dedicated LaTeX worker in production mode.'}
                 </div>
               )}
 	            {compileError && (
@@ -2046,7 +2180,7 @@ function HistoryView({ appConfig }) {
             <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
                {activeSubTab === 'preview' && (
                  <iframe 
-                   src={`/api/output/${activeItem.company}.pdf?req=${activeItem.timestamp}`}
+                   src={buildAuthedApiUrl(`/api/output/${activeItem.company}.pdf?req=${activeItem.timestamp}`)}
                    style={{width: '100%', height: '100%', border: 'none', borderRadius: '4px'}}
                    title="Archive Preview"
                  />
@@ -2061,7 +2195,7 @@ function HistoryView({ appConfig }) {
                    <div style={{display: 'flex', flexDirection: 'column', flex: 1, gap: '1rem'}}>
                      <div style={{display: 'flex', justifyContent: 'flex-end'}}>
                        {activeItem.coverLetterFile && (
-                         <a href={`/api/cover-letter/${activeItem.coverLetterFile}`} download className="secondary-button" style={{textDecoration: 'none'}}>
+                         <a href={buildAuthedApiUrl(`/api/cover-letter/${activeItem.coverLetterFile}`)} download className="secondary-button" style={{textDecoration: 'none'}}>
                            Download Cover Letter
                          </a>
                        )}
@@ -2264,211 +2398,6 @@ function ApplicationsView() {
       </div>
     )}
     </>
-  );
-}
-
-function OpportunitiesView() {
-  const [opportunities, setOpportunities] = useState([]);
-  const [sources, setSources] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('');
-  const [meta, setMeta] = useState({ updatedAt: '', fetchedAt: '', fromCache: false, stale: false });
-  const [filters, setFilters] = useState({
-    search: '',
-    roleType: 'all',
-    source: 'all',
-    postedWindow: 'all'
-  });
-
-  const loadOpportunities = (refresh = false) => {
-    setLoading(true);
-    setStatus(refresh ? 'Refreshing GitHub job feeds...' : 'Loading cached opportunities...');
-    fetch(`/api/opportunities${refresh ? '?refresh=1' : '?cache_only=1'}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load opportunities.');
-        setOpportunities(data.opportunities || []);
-        setSources(data.sources || []);
-        setMeta({
-          updatedAt: data.updatedAt || '',
-          fetchedAt: data.fetchedAt || '',
-          fromCache: !!data.fromCache,
-          stale: !!data.stale
-        });
-        setStatus(refresh
-          ? 'Fetched the latest opportunities from GitHub sources.'
-          : ((data.opportunities || []).length
-              ? 'Showing cached opportunities. Use Refresh Sources when you want a new pull.'
-              : 'No cached opportunities yet. Click Refresh Sources to pull the latest roles.'));
-      })
-      .catch((error) => {
-        setStatus(error.message || 'Failed to load opportunities.');
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => loadOpportunities(false), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  const uniqueSources = [...new Map(sources.map((source) => [source.sourceId, source])).values()];
-  const matchesPostedWindow = (age, postedWindow) => {
-    if (postedWindow === 'all') return true;
-    const normalized = (age || '').toLowerCase().trim();
-    const match = normalized.match(/(\d+)\s*(h|d|w|mo|m)/);
-    if (!match) return false;
-    const value = Number(match[1]);
-    const unit = match[2];
-    const ageInDays = unit === 'h'
-      ? value / 24
-      : unit === 'd'
-        ? value
-        : unit === 'w'
-          ? value * 7
-          : value * 30;
-
-    if (postedWindow === '24h') return ageInDays <= 1;
-    if (postedWindow === '7d') return ageInDays <= 7;
-    if (postedWindow === '30d') return ageInDays <= 30;
-    return true;
-  };
-  const filteredOpportunities = opportunities.filter((item) => {
-    const haystack = `${item.company} ${item.role} ${item.location} ${item.category} ${item.sourceName}`.toLowerCase();
-    const matchesSearch = !filters.search.trim() || haystack.includes(filters.search.trim().toLowerCase());
-    const matchesRoleType = filters.roleType === 'all' || item.roleType === filters.roleType;
-    const matchesSource = filters.source === 'all' || item.sourceId === filters.source;
-    const matchesPosted = matchesPostedWindow(item.age, filters.postedWindow);
-    return matchesSearch && matchesRoleType && matchesSource && matchesPosted;
-  });
-  const refreshedLabel = meta.updatedAt ? new Date(meta.updatedAt).toLocaleString() : 'Not refreshed yet';
-  const healthySources = sources.filter((source) => source.status !== 'error').length;
-
-  return (
-    <div className="hide-scrollbar" style={{padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 120px)', overflowY: 'auto', width: '100%', boxSizing: 'border-box'}}>
-      <div className="glass-panel opportunities-hero" style={{margin: 0}}>
-        <div className="opportunities-hero-top">
-          <div className="opportunities-hero-copy">
-            <h2 className="panel-title" style={{marginBottom: '0.5rem'}}>Opportunity Radar</h2>
-            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
-              Browse curated GitHub job boards, filter the best-fit roles quickly, and send one straight into the AI Generator without leaving the app.
-            </p>
-          </div>
-          <div className="action-row opportunities-hero-actions" style={{marginBottom: 0}}>
-            <div className="soft-pill success">{filteredOpportunities.length} roles</div>
-            <button className="secondary-button" onClick={() => loadOpportunities(true)} disabled={loading}>
-              {loading ? 'Refreshing...' : 'Refresh Sources'}
-            </button>
-          </div>
-        </div>
-
-        <div className="opportunities-toolbar">
-          <input
-            placeholder="Search company, role, location, category..."
-            value={filters.search}
-            onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-          />
-          <select
-            value={filters.roleType}
-            onChange={(e) => setFilters((prev) => ({ ...prev, roleType: e.target.value }))}
-          >
-            <option value="all">All role types</option>
-            <option value="internship">Internships</option>
-            <option value="new-grad">New grad</option>
-          </select>
-          <select
-            value={filters.source}
-            onChange={(e) => setFilters((prev) => ({ ...prev, source: e.target.value }))}
-          >
-            <option value="all">All sources</option>
-            {uniqueSources.map((source) => (
-              <option key={source.sourceId} value={source.sourceId}>{source.sourceName}</option>
-            ))}
-          </select>
-          <select
-            value={filters.postedWindow}
-            onChange={(e) => setFilters((prev) => ({ ...prev, postedWindow: e.target.value }))}
-          >
-            <option value="all">Any posted date</option>
-            <option value="24h">Last 24 hours</option>
-            <option value="7d">Last week</option>
-            <option value="30d">Last month</option>
-          </select>
-        </div>
-
-        <div className="opportunities-source-row">
-          <div className="surface-block opportunities-source-pill opportunities-status-pill">
-            <div style={{fontWeight: 700}}>Last refreshed</div>
-            <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
-              {refreshedLabel}
-            </div>
-          </div>
-          <div className="surface-block opportunities-source-pill opportunities-status-pill">
-            <div style={{fontWeight: 700}}>Source health</div>
-            <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
-              {healthySources}/{sources.length || 0} live
-            </div>
-          </div>
-          {uniqueSources.map((source) => (
-            <div key={source.sourceId} className="surface-block opportunities-source-pill">
-              <div style={{fontWeight: 700}}>{source.sourceName}</div>
-              <div style={{color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem'}}>
-                {source.count} listings
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {status && (
-          <div className={`status-banner ${status.toLowerCase().includes('failed') ? 'warning' : 'info'}`} style={{marginTop: '1rem'}}>
-            {status}
-          </div>
-        )}
-        {meta.stale && (
-          <div className="opportunities-meta-row">
-            {meta.stale && <div className="soft-pill">Stale fallback</div>}
-          </div>
-        )}
-      </div>
-
-      <div className="opportunities-grid">
-        {filteredOpportunities.map((item) => (
-          <div key={item.id} className="glass-panel opportunity-card" style={{margin: 0}}>
-            <div className="opportunity-card-header">
-              <div className="opportunity-card-title-wrap">
-                <h3 className="opportunity-card-title">{item.role}</h3>
-                <div style={{marginTop: '0.35rem', color: 'var(--text-primary)', fontWeight: 600}}>{item.company}</div>
-              </div>
-              <div className="soft-pill opportunity-age-pill">{item.age}</div>
-            </div>
-
-            <div className="generator-chip-wrap" style={{marginTop: '1rem'}}>
-              <span className="generator-chip">{item.location}</span>
-              <span className="generator-chip">{item.roleType === 'internship' ? 'Internship' : 'New Grad'}</span>
-              {item.category && <span className="generator-chip">{item.category}</span>}
-              <span className="generator-chip success">{item.sourceName}</span>
-            </div>
-
-            <div className="action-row opportunity-actions" style={{justifyContent: 'flex-start', marginTop: '1rem', marginBottom: 0}}>
-              {item.applyUrl && (
-                <a className="opportunity-apply-button" href={item.applyUrl} target="_blank" rel="noreferrer">
-                  Apply Now
-                </a>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {!loading && filteredOpportunities.length === 0 && (
-          <div className="glass-panel" style={{margin: 0}}>
-            <h2 className="panel-title">No matches found</h2>
-            <p style={{margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6}}>
-              Try widening the search, turning off the remote-only filter, or refreshing the source feeds.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 

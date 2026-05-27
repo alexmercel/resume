@@ -1,0 +1,85 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+
+% Custom font
+\usepackage{mathptmx}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.75in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{1in}
+
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large
+}{}{0em}{}[\titlerule\vspace{-6pt}]
+
+%Items formatting
+\setlist[itemize]{
+    leftmargin=2.5em,
+    itemsep=2pt,
+    topsep=0pt,
+    partopsep=0pt,
+    parsep=0pt
+}
+
+% Ensure that generated PDF is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------%
+% Resume Content Starts Here
+\begin{document}
+
+%----------HEADING----------%
+\begin{center}
+    {\LARGE \textbf{[Candidate Name]}}\\
+    {\normalsize [Suggested Job Title based on JD]}\\
+    \small
+    [Location] \,|\, [Phone] \,|\, \href{mailto:[Email]}{[Email]} \,|\, \href{https://[LinkedIn URL]}{[LinkedIn URL]} \,|\, \href{https://[GitHub URL]}{[GitHub URL]} \,|\, \href{https://[Portfolio URL]}{[Portfolio URL]}
+\end{center}
+\vspace{-13pt}
+
+
+%-----------EDUCATION-----------%
+\section*{Education}
+% Insert Education Data Here
+% Format: \textbf{University}, Location \hfill Dates \\ \textit{Degree} \hfill GPA \\ Related Coursework: ...
+
+%-----------EXPERIENCE-----------%
+\section*{Work Experience}
+% Insert Experience Data Here
+% Format: \textbf{Company}, Location \hfill Dates \\ \textit{Role} \begin{itemize} \item ... \end{itemize}
+
+%-----------PROJECTS-----------%
+\section*{Projects}
+% Insert Projects Data Here
+% Format: \textbf{Project Name} \hfill Dates \\ \textit{Tech Stack} \begin{itemize} \item ... \end{itemize}
+
+%-----------SKILLS-----------%
+\section*{Technical Skills}
+% Insert Skills Data Here
+% Format: \textbf{Category:} Skills
+
+%-----------RESEARCH-----------%
+\section*{Research}
+% Insert Research Data Here
+% Format: \textbf{Title} \\ Details...
+
+%-----------CERTIFICATIONS & AWARDS-----------%
+\section*{Certifications \& Awards}
+% Insert Certifications Data Here
+% Format: \begin{itemize} \item Certification or award \end{itemize}
+
+\end{document}

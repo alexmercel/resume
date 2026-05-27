@@ -2,9 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
+import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
+import { del as deleteBlob, get as getBlob, put as putBlob } from '@vercel/blob';
 import { createClient } from '@supabase/supabase-js';
 import { loadAppEnv } from './env.js';
 import {
@@ -17,17 +19,169 @@ import {
   generateWithUploadedResume
 } from './providers.js';
 import {
-  ensureOpportunitiesCacheDir,
-  getCachedOpportunitiesPayload,
-  getOpportunitiesPayload
+  ensureOpportunitiesCacheDir
 } from '../opportunities.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const REQUIRED_DATA_FILES = ['profile.md', 'projects.md', 'workex.md', 'education.md', 'skills.md'];
+const REQUIRED_DATA_FILES = [
+  'profile.md',
+  'projects.md',
+  'workex.md',
+  'education.md',
+  'skills.md',
+  'research.md',
+  'certification.md',
+  'extracurricular.md'
+];
+const USER_TEMPLATE_DOCUMENT_PREFIX = 'template:';
+const GENERATED_TEX_DOCUMENT_PREFIX = 'generated-tex:';
+const GENERATED_PDF_DOCUMENT_PREFIX = 'generated-pdf:';
+const DEFAULT_USER_DOCUMENT_CONTENT = {
+  'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
+  'projects.md': '# Projects\n',
+  'workex.md': '# Experience\n',
+  'education.md': '# Education\n',
+  'skills.md': '# Technical Skills\n',
+  'research.md': '# Research\n',
+  'certification.md': '# Certifications & Awards\n',
+  'extracurricular.md': '# Extracurricular & Workshops\n'
+};
 const generationState = {
   status: 'Idle'
+};
+
+const TECH_KEYWORD_CANONICALS = {
+  'python': 'Python',
+  'java': 'Java',
+  'javascript': 'JavaScript',
+  'typescript': 'TypeScript',
+  'c++': 'C++',
+  'cpp': 'C++',
+  'c#': 'C#',
+  'c sharp': 'C#',
+  'go': 'Go',
+  'golang': 'Go',
+  'rust': 'Rust',
+  'scala': 'Scala',
+  'kotlin': 'Kotlin',
+  'swift': 'Swift',
+  'r': 'R',
+  'sql': 'SQL',
+  'postgres': 'PostgreSQL',
+  'postgresql': 'PostgreSQL',
+  'mysql': 'MySQL',
+  'sqlite': 'SQLite',
+  'mongodb': 'MongoDB',
+  'redis': 'Redis',
+  'snowflake': 'Snowflake',
+  'databricks': 'Databricks',
+  'bigquery': 'BigQuery',
+  'tableau': 'Tableau',
+  'power bi': 'Power BI',
+  'excel': 'Excel',
+  'pandas': 'Pandas',
+  'numpy': 'NumPy',
+  'scikit learn': 'scikit-learn',
+  'scikit-learn': 'scikit-learn',
+  'tensorflow': 'TensorFlow',
+  'pytorch': 'PyTorch',
+  'keras': 'Keras',
+  'hugging face': 'Hugging Face',
+  'llm': 'LLMs',
+  'llms': 'LLMs',
+  'large language models': 'LLMs',
+  'agentic ai': 'Agentic AI',
+  'agents': 'AI Agents',
+  'ai agents': 'AI Agents',
+  'rag': 'RAG',
+  'rags': 'RAG',
+  'retrieval augmented generation': 'RAG',
+  'etl': 'ETL',
+  'elt': 'ELT',
+  'data pipeline': 'Data Pipelines',
+  'data pipelines': 'Data Pipelines',
+  'rest': 'REST APIs',
+  'rest api': 'REST APIs',
+  'rest apis': 'REST APIs',
+  'api integration': 'API Integrations',
+  'api integrations': 'API Integrations',
+  'graphql': 'GraphQL',
+  'grpc': 'gRPC',
+  'microservices': 'Microservices',
+  'distributed systems': 'Distributed Systems',
+  'distributed system': 'Distributed Systems',
+  'event driven architecture': 'Event-Driven Architecture',
+  'event-driven architecture': 'Event-Driven Architecture',
+  'system design': 'System Design',
+  'oop': 'OOP',
+  'oops': 'OOP',
+  'object oriented programming': 'OOP',
+  'object-oriented programming': 'OOP',
+  'docker': 'Docker',
+  'kubernetes': 'Kubernetes',
+  'terraform': 'Terraform',
+  'ansible': 'Ansible',
+  'jenkins': 'Jenkins',
+  'github actions': 'GitHub Actions',
+  'gitlab ci': 'GitLab CI',
+  'ci/cd': 'CI/CD',
+  'cicd': 'CI/CD',
+  'aws': 'AWS',
+  'amazon web services': 'AWS',
+  'gcp': 'GCP',
+  'google cloud': 'GCP',
+  'google cloud platform': 'GCP',
+  'azure': 'Azure',
+  'linux': 'Linux',
+  'unix': 'Unix',
+  'bash': 'Bash',
+  'shell scripting': 'Shell Scripting',
+  'react': 'React',
+  'react.js': 'React',
+  'node': 'Node.js',
+  'nodejs': 'Node.js',
+  'node.js': 'Node.js',
+  'next.js': 'Next.js',
+  'nextjs': 'Next.js',
+  'express': 'Express',
+  'flask': 'Flask',
+  'fastapi': 'FastAPI',
+  'django': 'Django',
+  'spring': 'Spring',
+  'spring boot': 'Spring Boot',
+  'verilog': 'Verilog',
+  'systemverilog': 'SystemVerilog',
+  'fpga': 'FPGA',
+  'matlab': 'MATLAB',
+  'simulink': 'Simulink',
+  'agile': 'Agile',
+  'scrum': 'Scrum'
+};
+
+const TECH_KEYWORD_ALIASES = {
+  'SQL': ['structured query language'],
+  'PostgreSQL': ['postgres', 'postgresql', 'postgre sql'],
+  'REST APIs': ['rest', 'rest api', 'rest apis', 'restful api', 'restful apis'],
+  'API Integrations': ['api integration', 'api integrations'],
+  'Distributed Systems': ['distributed systems', 'distributed system'],
+  'GitHub Actions': ['github actions', 'github action'],
+  'LLMs': ['llm', 'llms', 'large language model', 'large language models'],
+  'RAG': ['rag', 'rags', 'retrieval augmented generation', 'retrieval-augmented generation'],
+  'Agentic AI': ['agentic ai'],
+  'OOP': ['oop', 'oops', 'object oriented programming', 'object-oriented programming'],
+  'CI/CD': ['ci/cd', 'cicd', 'continuous integration', 'continuous delivery', 'continuous deployment'],
+  'Node.js': ['node', 'nodejs', 'node.js'],
+  'React': ['react', 'react.js'],
+  'Next.js': ['next.js', 'nextjs'],
+  'Go': ['go', 'golang'],
+  'C#': ['c#', 'c sharp'],
+  'C++': ['c++', 'cpp'],
+  'AWS': ['aws', 'amazon web services'],
+  'GCP': ['gcp', 'google cloud', 'google cloud platform'],
+  'scikit-learn': ['scikit learn', 'scikit-learn'],
+  'Data Pipelines': ['data pipeline', 'data pipelines']
 };
 
 function setGenerationStatus(status) {
@@ -44,34 +198,149 @@ function normalizeDailyGoal(value) {
   return Math.min(25, Math.max(1, parsed));
 }
 
-export function getPaths(basePath, userId = null) {
-  const appDir = path.join(basePath, 'resume-ui');
-  const legacyRoot = basePath;
+function parseRequestUrl(req) {
+  return new URL(req.url || '/', 'http://localhost');
+}
+
+function getQueryAccessToken(req) {
+  if (String(req.method || 'GET').toUpperCase() !== 'GET') return '';
+  try {
+    return parseRequestUrl(req).searchParams.get('access_token') || '';
+  } catch {
+    return '';
+  }
+}
+
+function isBlobStorageEnabled(env) {
+  return Boolean(String(env.BLOB_READ_WRITE_TOKEN || '').trim());
+}
+
+function shouldUseBlobArtifacts(env) {
+  const explicitStorageMode = String(env.PDF_STORAGE_MODE || '').trim().toLowerCase();
+  return isBlobStorageEnabled(env) && (explicitStorageMode === 'blob' || isRemoteLatexCompilerEnabled(env));
+}
+
+function isRemoteLatexCompilerEnabled(env) {
+  const explicitMode = String(env.LATEX_COMPILER_MODE || '').trim().toLowerCase();
+  if (explicitMode === 'remote') return isBlobStorageEnabled(env);
+  if (explicitMode === 'inline') return false;
+  return Boolean(env.VERCEL) && isBlobStorageEnabled(env);
+}
+
+function getRemoteLatexConfig(env) {
+  return {
+    baseUrl: String(env.LATEX_REMOTE_BASE_URL || 'https://latexonline.cc').trim().replace(/\/+$/, ''),
+    command: String(env.LATEX_REMOTE_COMMAND || 'pdflatex').trim() || 'pdflatex'
+  };
+}
+
+function buildPdfBlobPath(userId, fileName) {
+  return `users/${userId}/pdfs/${path.basename(fileName)}`;
+}
+
+function buildPreviewBlobPath(userId, type, fileName) {
+  return `users/${userId}/previews/${String(type || 'wireframe').trim()}/${path.basename(fileName)}`;
+}
+
+function buildTempTexBlobPath(userId, fileName) {
+  const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const token = crypto.randomBytes(6).toString('hex');
+  return `users/${userId || 'anonymous'}/temp/${Date.now()}-${token}-${safeName}`;
+}
+
+function getPublicAppBaseUrl(env) {
+  const explicit = String(env.APP_BASE_URL || env.APP_PUBLIC_BASE_URL || '').trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+
+  const vercelHost = String(
+    env.VERCEL_PROJECT_PRODUCTION_URL
+      || env.VERCEL_BRANCH_URL
+      || env.VERCEL_URL
+      || ''
+  ).trim().replace(/^https?:\/\//, '');
+  if (vercelHost) return `https://${vercelHost}`;
+
+  return 'http://localhost:3000';
+}
+
+function shouldUseEphemeralRuntime(env) {
+  return Boolean(env?.VERCEL);
+}
+
+function getRuntimeRoot(basePath, env) {
+  if (shouldUseEphemeralRuntime(env)) {
+    return path.join(os.tmpdir(), 'resume-ui-runtime');
+  }
+  return basePath;
+}
+
+function resolveSharedAssetsBasePath(basePath) {
+  const candidates = [
+    basePath,
+    path.join(basePath, 'shared-assets'),
+    path.resolve(process.cwd(), 'shared-assets')
+  ];
+
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(path.join(candidate, 'Templates')) && fs.existsSync(path.join(candidate, '.agent'));
+    } catch {
+      return false;
+    }
+  }) || basePath;
+}
+
+function streamWebToNode(stream, res) {
+  if (!stream) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return;
+  }
+  Readable.fromWeb(stream).pipe(res);
+}
+
+function extractMissingGenerationHistoryColumn(error, activeColumns = []) {
+  const message = String(error?.message || '');
+  const optionalColumns = ['cover_letter_content', 'tex_content', 'pdf_blob_path', 'pdf_blob_url'];
+  return [...activeColumns, ...optionalColumns].find((column) => message.includes(column)) || '';
+}
+
+export function getPaths(basePath, userId = null, env = {}) {
+  const runtimeRoot = getRuntimeRoot(basePath, env);
+  const assetBasePath = resolveSharedAssetsBasePath(basePath);
+  const appDir = shouldUseEphemeralRuntime(env)
+    ? runtimeRoot
+    : path.join(basePath, 'resume-ui');
+  const legacyRoot = shouldUseEphemeralRuntime(env)
+    ? runtimeRoot
+    : basePath;
   const workspaceRoot = userId
-    ? path.join(basePath, 'Runtime_Data', 'users', userId)
+    ? path.join(runtimeRoot, 'Runtime_Data', 'users', userId)
     : legacyRoot;
 
-  const buildLogsDir = userId ? path.join(workspaceRoot, 'Build_Logs') : path.join(basePath, 'Build_Logs');
+  const buildLogsDir = userId ? path.join(workspaceRoot, 'Build_Logs') : path.join(legacyRoot, 'Build_Logs');
   const opportunitiesCachePath = path.join(appDir, 'opportunities-cache.json');
 
   return {
     basePath,
+    assetBasePath,
     appDir,
+    runtimeRoot,
     workspaceRoot,
     dataDir: path.join(workspaceRoot, 'Data'),
     pdfDir: path.join(workspaceRoot, 'PDFs'),
     texDir: path.join(workspaceRoot, 'Tex_Files'),
     coverLettersDir: path.join(workspaceRoot, 'Cover_Letters'),
     buildLogsDir,
-    wireframesDir: path.join(basePath, 'Templates', 'Wireframes'),
-    genericTemplatesDir: path.join(basePath, 'Templates', 'Generic'),
+    wireframesDir: path.join(assetBasePath, 'Templates', 'Wireframes'),
+    genericTemplatesDir: path.join(assetBasePath, 'Templates', 'Generic'),
     settingsPath: path.join(appDir, 'user-settings.json'),
     applicationsPath: path.join(appDir, 'applications.json'),
     opportunitiesCachePath,
-    legacyDataDir: path.join(basePath, 'Data'),
-    legacyPdfDir: path.join(basePath, 'PDFs'),
-    legacyTexDir: path.join(basePath, 'Tex_Files'),
-    legacyCoverLettersDir: path.join(basePath, 'Cover_Letters')
+    legacyDataDir: path.join(legacyRoot, 'Data'),
+    legacyPdfDir: path.join(legacyRoot, 'PDFs'),
+    legacyTexDir: path.join(legacyRoot, 'Tex_Files'),
+    legacyCoverLettersDir: path.join(legacyRoot, 'Cover_Letters')
   };
 }
 
@@ -92,6 +361,72 @@ export function ensureWorkspaceDirs(paths) {
 
 function isAllowedUserDocument(fileName) {
   return REQUIRED_DATA_FILES.includes(String(fileName || '').trim());
+}
+
+function getDefaultUserDocumentContent(fileName) {
+  return DEFAULT_USER_DOCUMENT_CONTENT[fileName] || '';
+}
+
+export function documentHasMeaningfulContent(fileName, content) {
+  const normalizedContent = String(content || '').trim();
+  if (!normalizedContent) return false;
+  return normalizedContent !== String(getDefaultUserDocumentContent(fileName) || '').trim();
+}
+
+export function normalizeTemplateType(type) {
+  return String(type || '').trim().toLowerCase() === 'generic' ? 'generic' : 'wireframes';
+}
+
+function getTemplateFolderName(type) {
+  return normalizeTemplateType(type) === 'generic' ? 'Generic' : 'Wireframes';
+}
+
+export function buildUserTemplateDocumentKey(type, fileName) {
+  return `${USER_TEMPLATE_DOCUMENT_PREFIX}${normalizeTemplateType(type)}:${String(fileName || '').trim()}`;
+}
+
+export function parseUserTemplateDocumentKey(documentKey) {
+  const match = String(documentKey || '').match(/^template:(wireframes|generic):(.+)$/);
+  if (!match) return null;
+  return {
+    type: match[1],
+    fileName: match[2]
+  };
+}
+
+function buildGeneratedTexDocumentKey(fileName) {
+  return `${GENERATED_TEX_DOCUMENT_PREFIX}${String(fileName || '').trim().replace(/\.tex$/i, '')}`;
+}
+
+function buildGeneratedPdfDocumentKey(fileName) {
+  return `${GENERATED_PDF_DOCUMENT_PREFIX}${String(fileName || '').trim().replace(/\.pdf$/i, '')}`;
+}
+
+function getDefaultTemplateBoilerplate(type) {
+  return normalizeTemplateType(type) === 'generic'
+    ? '\\documentclass{article}\n\\begin{document}\n% New generic resume scaffold\n\\end{document}\n'
+    : '\\documentclass{article}\n\\begin{document}\n% New wireframe scaffold\n\\end{document}\n';
+}
+
+function getTemplatesRoot(basePath) {
+  return path.join(resolveSharedAssetsBasePath(basePath), 'Templates');
+}
+
+function getAgentRoot(basePath) {
+  return path.join(resolveSharedAssetsBasePath(basePath), '.agent');
+}
+
+function listSharedTemplateNames(basePath, type) {
+  const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(type));
+  if (!fs.existsSync(templateDir)) return [];
+  return fs.readdirSync(templateDir).filter((file) => file.endsWith('.tex'));
+}
+
+function readSharedTemplate(basePath, type, fileName) {
+  const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(type));
+  const filePath = resolveSafePath(templateDir, fileName);
+  if (!fs.existsSync(filePath)) return null;
+  return fs.readFileSync(filePath, 'utf-8');
 }
 
 function resolveSafePath(rootDir, rawName) {
@@ -117,6 +452,18 @@ function isMissingColumnError(error, columnName) {
     && (
       error.code === 'PGRST204'
       || (normalizedColumn && message.includes(normalizedColumn) && /column/i.test(message))
+    )
+  );
+}
+
+function isMissingTableError(error, tableName) {
+  const message = String(error?.message || '');
+  const normalizedTable = String(tableName || '').trim();
+  return Boolean(
+    error
+    && (
+      error.code === '42P01'
+      || (normalizedTable && message.includes(normalizedTable) && /relation|table/i.test(message))
     )
   );
 }
@@ -162,6 +509,7 @@ export function isSupabaseEnabled(env) {
 }
 
 export function getLatexExecutionMode(env) {
+  if (isRemoteLatexCompilerEnabled(env)) return 'remote';
   return String(env.LATEX_QUEUE_MODE || '').trim().toLowerCase() === 'worker' && isSupabaseEnabled(env)
     ? 'worker'
     : 'inline';
@@ -175,10 +523,12 @@ function getPublicAppConfig(basePath) {
   return {
     success: true,
     authEnabled: supabaseEnabled,
-    storageMode: supabaseEnabled ? 'database+scoped-files' : 'legacy-files',
+    storageMode: supabaseEnabled
+      ? (shouldUseBlobArtifacts(env) ? 'database+blob' : 'database+scoped-files')
+      : 'legacy-files',
     latex: {
       mode: latexMode,
-      requiresLocalPdflatex: latexMode !== 'worker'
+      requiresLocalPdflatex: latexMode === 'inline'
     },
     supabase: supabaseEnabled
       ? {
@@ -222,7 +572,8 @@ async function getUserFromRequest(req, env) {
 
   const authHeader = req.headers.authorization || '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!tokenMatch) {
+  const accessToken = tokenMatch?.[1] || getQueryAccessToken(req);
+  if (!accessToken) {
     return { user: null, userId: null, authEnabled: true };
   }
 
@@ -231,7 +582,7 @@ async function getUserFromRequest(req, env) {
     return { user: null, userId: null, authEnabled: true };
   }
 
-  const { data, error } = await clients.auth.auth.getUser(tokenMatch[1]);
+  const { data, error } = await clients.auth.auth.getUser(accessToken);
   if (error || !data?.user) {
     return { user: null, userId: null, authEnabled: true };
   }
@@ -278,6 +629,23 @@ function decryptSecret(payload, env) {
     decipher.final()
   ]);
   return decrypted.toString('utf-8');
+}
+
+function createRemoteTexAccessToken(env, payload) {
+  return encodeURIComponent(encryptSecret(JSON.stringify(payload), env));
+}
+
+function readRemoteTexAccessToken(env, token) {
+  if (!token) return null;
+  try {
+    const decrypted = decryptSecret(decodeURIComponent(token), env);
+    const parsed = JSON.parse(decrypted);
+    if (!parsed?.blobPath || !parsed?.expiresAt) return null;
+    if (Number(parsed.expiresAt) < Date.now()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function readLegacySettings(paths) {
@@ -408,29 +776,24 @@ export async function getUserSettings(paths, env, userId = null) {
       .select('provider, encrypted_key')
       .eq('user_id', userId)
   ]);
-  const legacy = readLegacySettings(paths);
 
   const provider = getProvider(
     settingsRow?.preferred_provider
-      || legacy.provider
       || 'google'
   ).id;
   const keyMap = new Map((keyRows || []).map((row) => [row.provider, row.encrypted_key]));
-  const legacyProviderKey = provider === 'google'
-    ? (legacy.providerKeys?.google || legacy.geminiApiKey || '')
-    : (legacy.providerKeys?.[provider] || '');
-  const configuredKey = keyMap.get(provider) || legacyProviderKey || env[getProvider(provider).envKey] || '';
-  const hasUserKey = Boolean(keyMap.get(provider) || legacyProviderKey);
+  const configuredKey = keyMap.get(provider) || env[getProvider(provider).envKey] || '';
+  const hasUserKey = Boolean(keyMap.get(provider));
 
   return {
     provider,
-    selectedModel: settingsRow?.preferred_model || legacy.selectedModel || getDefaultModelForProvider(provider),
-    dailyApplicationGoal: normalizeDailyGoal(settingsRow?.daily_application_goal || legacy.dailyApplicationGoal || 5),
+    selectedModel: settingsRow?.preferred_model || getDefaultModelForProvider(provider),
+    dailyApplicationGoal: normalizeDailyGoal(settingsRow?.daily_application_goal || 5),
     providerKeyConfigured: Boolean(configuredKey),
     keySource: hasUserKey ? 'user' : (env[getProvider(provider).envKey] ? 'server' : 'none'),
     geminiApiKey: '',
     geminiModel: provider === 'google'
-      ? (settingsRow?.preferred_model || legacy.geminiModel || legacy.selectedModel || getDefaultModelForProvider('google'))
+      ? (settingsRow?.preferred_model || getDefaultModelForProvider('google'))
       : getDefaultModelForProvider('google')
   };
 }
@@ -527,9 +890,6 @@ export async function resolveProviderCredential(paths, env, userId, providerId, 
     .maybeSingle();
   if (error) throw new Error(error.message || 'Failed to load provider key.');
   if (data?.encrypted_key) return decryptSecret(data.encrypted_key, env);
-  const legacy = readLegacySettings(paths);
-  if (provider.id === 'google' && legacy.geminiApiKey) return legacy.geminiApiKey;
-  if (legacy.providerKeys?.[provider.id]) return legacy.providerKeys[provider.id];
   if (env[provider.envKey]) return env[provider.envKey];
   return '';
 }
@@ -562,14 +922,9 @@ async function listProviderConfigurations(paths, env, userId = null) {
     .eq('user_id', userId);
   if (error) throw new Error(error.message || 'Failed to load provider configuration.');
 
-  const legacy = readLegacySettings(paths);
   const userProviderSet = new Set((data || []).map((row) => row.provider));
   return providers.map((provider) => {
-    const hasLegacyUserKey = Boolean(
-      legacy.providerKeys?.[provider.id]
-      || (provider.id === 'google' && legacy.geminiApiKey)
-    );
-    const hasUserKey = userProviderSet.has(provider.id) || hasLegacyUserKey;
+    const hasUserKey = userProviderSet.has(provider.id);
     const hasServerKey = Boolean(env[provider.envKey]);
     return {
       id: provider.id,
@@ -607,6 +962,7 @@ async function readUserDocument(paths, env, userId, fileName) {
     return '';
   }
 
+  await ensureUserDocumentsSeeded(env, userId);
   const { admin } = await getDbClientsOrThrow(env);
   const { data, error } = await admin
     .from('user_documents')
@@ -617,10 +973,7 @@ async function readUserDocument(paths, env, userId, fileName) {
 
   if (error) throw new Error(error.message || 'Failed to read document.');
   if (data?.content != null) return data.content;
-
-  const fallbackPath = path.join(paths.legacyDataDir, fileName);
-  if (fs.existsSync(fallbackPath)) return fs.readFileSync(fallbackPath, 'utf-8');
-  return '';
+  return getDefaultUserDocumentContent(fileName);
 }
 
 async function writeUserDocument(paths, env, userId, fileName, content) {
@@ -638,6 +991,243 @@ async function writeUserDocument(paths, env, userId, fileName, content) {
     updated_at: new Date().toISOString()
   });
   if (error) throw new Error(error.message || 'Failed to save document.');
+}
+
+async function ensureUserDocumentsSeeded(env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const rows = REQUIRED_DATA_FILES.map((documentKey) => ({
+    user_id: userId,
+    document_key: documentKey,
+    content: getDefaultUserDocumentContent(documentKey),
+    updated_at: new Date().toISOString()
+  }));
+
+  const { error } = await admin
+    .from('user_documents')
+    .upsert(rows, { onConflict: 'user_id,document_key', ignoreDuplicates: true });
+
+  if (error) throw new Error(error.message || 'Failed to initialize user documents.');
+}
+
+async function ensureUserSettingsSeeded(env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  const defaultProvider = getProvider('google').id;
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_settings')
+    .upsert({
+      user_id: userId,
+      preferred_provider: defaultProvider,
+      preferred_model: getDefaultModelForProvider(defaultProvider),
+      daily_application_goal: 5,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+  if (error) throw new Error(error.message || 'Failed to initialize user settings.');
+}
+
+async function listUserTemplatesFromDocuments(env, userId, type) {
+  const normalizedType = normalizeTemplateType(type);
+  const { admin } = await getDbClientsOrThrow(env);
+  const keyPrefix = `${USER_TEMPLATE_DOCUMENT_PREFIX}${normalizedType}:`;
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('document_key')
+    .eq('user_id', userId)
+    .like('document_key', `${keyPrefix}%`)
+    .order('document_key', { ascending: true });
+
+  if (error) throw new Error(error.message || 'Failed to load fallback user templates.');
+
+  return (data || [])
+    .map((row) => parseUserTemplateDocumentKey(row.document_key))
+    .filter((row) => row && row.type === normalizedType)
+    .map((row) => row.fileName);
+}
+
+async function readUserTemplateFromDocuments(env, userId, type, fileName) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('content, updated_at')
+    .eq('user_id', userId)
+    .eq('document_key', buildUserTemplateDocumentKey(type, fileName))
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Failed to load fallback user template.');
+  if (data?.content == null) return null;
+  return {
+    content: data.content,
+    source: 'user',
+    updatedAt: data.updated_at || null
+  };
+}
+
+async function saveUserTemplateToDocuments(env, userId, type, fileName, content) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_documents')
+    .upsert({
+      user_id: userId,
+      document_key: buildUserTemplateDocumentKey(type, fileName),
+      content: String(content || ''),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,document_key' });
+
+  if (error) throw new Error(error.message || 'Failed to save fallback user template.');
+  return { source: 'user' };
+}
+
+async function readGeneratedArtifactValueFromDocuments(env, userId, documentKey) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_documents')
+    .select('content')
+    .eq('user_id', userId)
+    .eq('document_key', documentKey)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Failed to load generated artifact fallback.');
+  return data?.content ?? '';
+}
+
+async function saveGeneratedArtifactValueToDocuments(env, userId, documentKey, content) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_documents')
+    .upsert({
+      user_id: userId,
+      document_key: documentKey,
+      content: String(content || ''),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,document_key' });
+
+  if (error) throw new Error(error.message || 'Failed to save generated artifact fallback.');
+}
+
+async function initializeUserWorkspace(paths, env, userId) {
+  if (!userId || !isSupabaseEnabled(env)) return;
+
+  await Promise.all([
+    ensureUserDocumentsSeeded(env, userId),
+    ensureUserSettingsSeeded(env, userId)
+  ]);
+  ensureWorkspaceDirs(paths);
+}
+
+async function listAccessibleTemplates(basePath, env, userId, type) {
+  const normalizedType = normalizeTemplateType(type);
+  const sharedTemplates = listSharedTemplateNames(basePath, normalizedType).map((templateName) => ({
+    name: templateName,
+    source: 'shared'
+  }));
+
+  if (!userId || !isSupabaseEnabled(env)) {
+    return sharedTemplates;
+  }
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const { data, error } = await admin
+    .from('user_templates')
+    .select('template_name')
+    .eq('user_id', userId)
+    .eq('template_type', normalizedType)
+    .order('template_name', { ascending: true });
+
+  if (error) {
+    if (isMissingTableError(error, 'user_templates')) {
+      const fallbackTemplates = await listUserTemplatesFromDocuments(env, userId, normalizedType);
+      const merged = new Map(sharedTemplates.map((item) => [item.name, item]));
+      fallbackTemplates.forEach((templateName) => {
+        merged.set(templateName, {
+          name: templateName,
+          source: 'user'
+        });
+      });
+      return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
+    }
+    throw new Error(error.message || 'Failed to load user templates.');
+  }
+
+  const merged = new Map(sharedTemplates.map((item) => [item.name, item]));
+  for (const row of data || []) {
+    merged.set(row.template_name, {
+      name: row.template_name,
+      source: 'user'
+    });
+  }
+
+  return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function readAccessibleTemplate(basePath, env, userId, type, fileName) {
+  const normalizedType = normalizeTemplateType(type);
+  if (userId && isSupabaseEnabled(env)) {
+    const { admin } = await getDbClientsOrThrow(env);
+    const { data, error } = await admin
+      .from('user_templates')
+      .select('content, updated_at')
+      .eq('user_id', userId)
+      .eq('template_type', normalizedType)
+      .eq('template_name', fileName)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingTableError(error, 'user_templates')) {
+        const fallbackTemplate = await readUserTemplateFromDocuments(env, userId, normalizedType, fileName);
+        if (fallbackTemplate) return fallbackTemplate;
+      } else {
+        throw new Error(error.message || 'Failed to load template.');
+      }
+    }
+    if (data?.content != null) {
+      return {
+        content: data.content,
+        source: 'user',
+        updatedAt: data.updated_at || null
+      };
+    }
+  }
+
+  const sharedContent = readSharedTemplate(basePath, normalizedType, fileName);
+  if (sharedContent == null) return null;
+  return {
+    content: sharedContent,
+    source: 'shared',
+    updatedAt: null
+  };
+}
+
+async function saveUserTemplate(basePath, env, userId, type, fileName, content) {
+  const normalizedType = normalizeTemplateType(type);
+  const nextContent = String(content || '');
+
+  if (!userId || !isSupabaseEnabled(env)) {
+    const templateDir = path.join(getTemplatesRoot(basePath), getTemplateFolderName(normalizedType));
+    const filePath = resolveSafePath(templateDir, fileName);
+    fs.writeFileSync(filePath, nextContent, 'utf-8');
+    return { source: 'shared' };
+  }
+
+  const { admin } = await getDbClientsOrThrow(env);
+  const { error } = await admin
+    .from('user_templates')
+    .upsert({
+      user_id: userId,
+      template_type: normalizedType,
+      template_name: fileName,
+      content: nextContent,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,template_type,template_name' });
+
+  if (error && isMissingTableError(error, 'user_templates')) {
+    return saveUserTemplateToDocuments(env, userId, normalizedType, fileName, nextContent);
+  }
+  if (error) throw new Error(error.message || 'Failed to save user template.');
+  return { source: 'user' };
 }
 
 async function listUserApplications(paths, env, userId) {
@@ -766,38 +1356,246 @@ function scanHistoryFromFiles(paths) {
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
+async function selectGenerationHistoryRows(env, userId, columns, buildQuery) {
+  const { admin } = await getDbClientsOrThrow(env);
+  let activeColumns = [...columns];
+
+  while (activeColumns.length) {
+    let query = admin
+      .from('generation_history')
+      .select(activeColumns.join(', '))
+      .eq('user_id', userId);
+
+    if (typeof buildQuery === 'function') {
+      query = buildQuery(query);
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return {
+        data,
+        availableColumns: new Set(activeColumns)
+      };
+    }
+
+    const missingColumn = extractMissingGenerationHistoryColumn(error, activeColumns);
+    if (!missingColumn) {
+      throw new Error(error.message || 'Failed to load generation history.');
+    }
+    activeColumns = activeColumns.filter((column) => column !== missingColumn);
+  }
+
+  return {
+    data: [],
+    availableColumns: new Set()
+  };
+}
+
+async function upsertGenerationHistoryFields(env, payload) {
+  const { admin } = await getDbClientsOrThrow(env);
+  const workingPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
+
+  while (true) {
+    const { error } = await admin.from('generation_history').upsert(workingPayload, {
+      onConflict: 'user_id,artifact_base_name'
+    });
+    if (!error) return workingPayload;
+
+    const missingColumn = extractMissingGenerationHistoryColumn(error, Object.keys(workingPayload));
+    if (!missingColumn) {
+      throw new Error(error.message || 'Failed to record generation history.');
+    }
+    delete workingPayload[missingColumn];
+  }
+}
+
+async function getStoredTexContent(paths, env, userId, fileName) {
+  const normalizedFileName = String(fileName || '').trim();
+  const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
+  const filePath = resolveSafePath(paths.texDir, normalizedFileName);
+
+  if (userId && isSupabaseEnabled(env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      env,
+      userId,
+      ['artifact_base_name', 'tex_content'],
+      (query) => query.eq('artifact_base_name', artifactBaseName).maybeSingle()
+    );
+    if (availableColumns.has('tex_content') && data?.tex_content != null) {
+      return data.tex_content;
+    }
+    const fallbackContent = await readGeneratedArtifactValueFromDocuments(
+      env,
+      userId,
+      buildGeneratedTexDocumentKey(normalizedFileName)
+    );
+    if (fallbackContent) return fallbackContent;
+    if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
+    return '';
+  }
+
+  if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8');
+
+  const legacyPath = path.join(paths.legacyTexDir, normalizedFileName);
+  if (legacyPath !== filePath && fs.existsSync(legacyPath)) return fs.readFileSync(legacyPath, 'utf-8');
+  return '';
+}
+
+async function saveStoredTexContent(paths, env, userId, fileName, content) {
+  const normalizedFileName = String(fileName || '').trim();
+  const artifactBaseName = normalizedFileName.replace(/\.tex$/i, '');
+
+  if (userId && isSupabaseEnabled(env)) {
+    const persisted = await upsertGenerationHistoryFields(env, {
+      user_id: userId,
+      artifact_base_name: artifactBaseName,
+      tex_content: String(content || ''),
+      updated_at: new Date().toISOString()
+    });
+    if (!Object.prototype.hasOwnProperty.call(persisted, 'tex_content')) {
+      await saveGeneratedArtifactValueToDocuments(
+        env,
+        userId,
+        buildGeneratedTexDocumentKey(normalizedFileName),
+        String(content || '')
+      );
+    }
+    if (isRemoteLatexCompilerEnabled(env)) {
+      return;
+    }
+  }
+
+  ensureDir(paths.texDir);
+  fs.writeFileSync(path.join(paths.texDir, normalizedFileName), content, 'utf-8');
+}
+
+async function savePdfArtifact(paths, env, userId, fileName, pdfBuffer, options = {}) {
+  const normalizedFileName = path.basename(String(fileName || '').trim());
+  const targetBuffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+  if (userId && shouldUseBlobArtifacts(env)) {
+    const blobPath = options.preview
+      ? buildPreviewBlobPath(userId, options.previewType, normalizedFileName)
+      : buildPdfBlobPath(userId, normalizedFileName);
+    const blob = await putBlob(blobPath, targetBuffer, {
+      access: 'private',
+      allowOverwrite: true,
+      addRandomSuffix: false,
+      contentType: 'application/pdf'
+    });
+
+    if (!options.preview && isSupabaseEnabled(env)) {
+      const persisted = await upsertGenerationHistoryFields(env, {
+        user_id: userId,
+        artifact_base_name: normalizedFileName.replace(/\.pdf$/i, ''),
+        pdf_blob_path: blob.pathname,
+        pdf_blob_url: blob.url,
+        updated_at: new Date().toISOString()
+      });
+      if (
+        !Object.prototype.hasOwnProperty.call(persisted, 'pdf_blob_path') &&
+        !Object.prototype.hasOwnProperty.call(persisted, 'pdf_blob_url')
+      ) {
+        await saveGeneratedArtifactValueToDocuments(
+          env,
+          userId,
+          buildGeneratedPdfDocumentKey(normalizedFileName),
+          blob.pathname
+        );
+      }
+    }
+
+    return {
+      mode: 'blob',
+      pathname: blob.pathname,
+      url: blob.url
+    };
+  }
+
+  ensureDir(paths.pdfDir);
+  const pdfPath = path.join(paths.pdfDir, normalizedFileName);
+  fs.writeFileSync(pdfPath, targetBuffer);
+  return {
+    mode: 'filesystem',
+    filePath: pdfPath
+  };
+}
+
+async function streamPdfArtifactToResponse(paths, env, userId, fileName, res) {
+  const normalizedFileName = path.basename(String(fileName || '').trim());
+
+  if (userId && shouldUseBlobArtifacts(env) && isSupabaseEnabled(env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      env,
+      userId,
+      ['artifact_base_name', 'pdf_blob_path', 'pdf_blob_url'],
+      (query) => query.eq('artifact_base_name', normalizedFileName.replace(/\.pdf$/i, '')).maybeSingle()
+    );
+    const blobPath = availableColumns.has('pdf_blob_path')
+      ? (data?.pdf_blob_path || data?.pdf_blob_url || '')
+      : '';
+    const fallbackBlobPath = blobPath || await readGeneratedArtifactValueFromDocuments(
+      env,
+      userId,
+      buildGeneratedPdfDocumentKey(normalizedFileName)
+    );
+    if (fallbackBlobPath) {
+      const blobResult = await getBlob(fallbackBlobPath, { access: 'private' });
+      if (!blobResult?.stream) {
+        res.statusCode = 404;
+        res.end('Not found');
+        return false;
+      }
+      res.setHeader('Content-Type', blobResult.blob.contentType || 'application/pdf');
+      res.setHeader('Content-Length', String(blobResult.blob.size || 0));
+      streamWebToNode(blobResult.stream, res);
+      return true;
+    }
+  }
+
+  const filePath = resolveSafePath(paths.pdfDir, normalizedFileName);
+  if (!fs.existsSync(filePath)) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return false;
+  }
+  const stat = fs.statSync(filePath);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Length', stat.size);
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
+
 async function readUserHistory(paths, env, userId) {
   if (!userId || !isSupabaseEnabled(env)) {
     return scanHistoryFromFiles(paths);
   }
 
-  const { admin } = await getDbClientsOrThrow(env);
-  let historyQuery = admin
-    .from('generation_history')
-    .select('artifact_base_name, template_name, jd, cover_letter_file, cover_letter_content, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  let { data, error } = await historyQuery;
-  let hasCoverLetterContentColumn = true;
-  if (isMissingColumnError(error, 'cover_letter_content')) {
-    hasCoverLetterContentColumn = false;
-    ({ data, error } = await admin
-      .from('generation_history')
-      .select('artifact_base_name, template_name, jd, cover_letter_file, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false }));
-  }
-  if (error) throw new Error(error.message || 'Failed to load history.');
+  const { data, availableColumns } = await selectGenerationHistoryRows(
+    env,
+    userId,
+    [
+      'artifact_base_name',
+      'template_name',
+      'jd',
+      'cover_letter_file',
+      'cover_letter_content',
+      'pdf_blob_path',
+      'pdf_blob_url',
+      'created_at',
+      'updated_at'
+    ],
+    (query) => query.order('created_at', { ascending: false })
+  );
 
-  if (!data?.length) {
-    return scanHistoryFromFiles(paths);
-  }
+  if (!data?.length) return [];
 
   return data.map((row) => {
     const coverLetterPath = row.cover_letter_file
       ? path.join(paths.coverLettersDir, row.cover_letter_file)
       : null;
-    const coverLetterContent = hasCoverLetterContentColumn && row.cover_letter_content != null
+    const coverLetterContent = availableColumns.has('cover_letter_content') && row.cover_letter_content != null
       ? row.cover_letter_content
       : (
           coverLetterPath && fs.existsSync(coverLetterPath)
@@ -818,34 +1616,20 @@ async function readUserHistory(paths, env, userId) {
 
 async function recordGenerationHistory(paths, env, userId, payload) {
   if (!userId || !isSupabaseEnabled(env)) return;
-  const { admin } = await getDbClientsOrThrow(env);
   const timestamp = payload.createdAt || new Date().toISOString();
-  let { error } = await admin.from('generation_history').upsert({
+  await upsertGenerationHistoryFields(env, {
     user_id: userId,
     artifact_base_name: payload.artifactBaseName,
     template_name: payload.templateName,
     jd: payload.jd || '',
     cover_letter_file: payload.coverLetterFile || '',
     cover_letter_content: payload.coverLetterContent || '',
+    tex_content: payload.texContent,
+    pdf_blob_path: payload.pdfBlobPath,
+    pdf_blob_url: payload.pdfBlobUrl,
     created_at: timestamp,
     updated_at: timestamp
-  }, {
-    onConflict: 'user_id,artifact_base_name'
   });
-  if (isMissingColumnError(error, 'cover_letter_content')) {
-    ({ error } = await admin.from('generation_history').upsert({
-      user_id: userId,
-      artifact_base_name: payload.artifactBaseName,
-      template_name: payload.templateName,
-      jd: payload.jd || '',
-      cover_letter_file: payload.coverLetterFile || '',
-      created_at: timestamp,
-      updated_at: timestamp
-    }, {
-      onConflict: 'user_id,artifact_base_name'
-    }));
-  }
-  if (error) throw new Error(error.message || 'Failed to record generation history.');
 }
 
 async function enqueueGenerationJob(paths, env, userId, payload) {
@@ -1014,8 +1798,8 @@ function getPlatformInfo() {
 
 function getTemplatePackages(basePath) {
   const templateDirs = [
-    path.join(basePath, 'Templates', 'Wireframes'),
-    path.join(basePath, 'Templates', 'Generic')
+    path.join(getTemplatesRoot(basePath), 'Wireframes'),
+    path.join(getTemplatesRoot(basePath), 'Generic')
   ];
   const packages = new Set();
 
@@ -1139,7 +1923,9 @@ Rules:
 2. Do NOT invent experience, projects, or personal data.
 3. Do NOT change candidate facts.
 4. Keep the same overall template structure.
-5. Return ONLY raw LaTeX. No markdown fences or explanation.
+5. Do NOT add, remove, or rename any \\usepackage lines.
+6. Do NOT introduce any new LaTeX library, plugin, package, document class, or macro dependency that is not already present in the document.
+7. Return ONLY raw LaTeX. No markdown fences or explanation.
 
 Compiler output:
 ${extractLatexErrorSnippet(compilerOutput)}
@@ -1237,6 +2023,147 @@ export async function compileLatexWithRetries({
   };
 }
 
+async function runRemoteLatexCompileOnce({ env, userId, fileName, content }) {
+  const remoteConfig = getRemoteLatexConfig(env);
+  const tempBlobPath = buildTempTexBlobPath(userId, fileName);
+  const tempBlob = await putBlob(tempBlobPath, String(content || ''), {
+    access: 'private',
+    allowOverwrite: true,
+    addRandomSuffix: false,
+    contentType: 'application/x-tex; charset=utf-8'
+  });
+
+  try {
+    const compileUrl = new URL('/compile', `${remoteConfig.baseUrl}/`);
+    const accessToken = createRemoteTexAccessToken(env, {
+      blobPath: tempBlob.pathname,
+      expiresAt: Date.now() + (5 * 60 * 1000)
+    });
+    const sourceUrl = new URL(`/api/remote-tex/${accessToken}`, getPublicAppBaseUrl(env));
+    compileUrl.searchParams.set('url', sourceUrl.toString());
+    compileUrl.searchParams.set('download', path.basename(fileName).replace(/\.tex$/i, '.pdf'));
+    if (remoteConfig.command) {
+      compileUrl.searchParams.set('command', remoteConfig.command);
+    }
+
+    try {
+      const response = await fetch(compileUrl, {
+        redirect: 'follow',
+        headers: {
+          Accept: 'application/pdf, text/plain;q=0.9, */*;q=0.8'
+        }
+      });
+
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      if (!response.ok || !contentType.includes('pdf')) {
+        const output = await response.text().catch(() => '');
+        const diagnostic = output || `Remote compiler failed with status ${response.status}.`;
+        console.error('[remote-latex] compile failed', {
+          fileName,
+          status: response.status,
+          contentType,
+          compilerHost: new URL(remoteConfig.baseUrl).host,
+          sourcePath: tempBlob.pathname,
+          outputSnippet: diagnostic.slice(0, 1200)
+        });
+        return {
+          success: false,
+          output: diagnostic
+        };
+      }
+
+      return {
+        success: true,
+        output: `Compiled remotely via ${new URL(remoteConfig.baseUrl).host}.`,
+        pdfBuffer: Buffer.from(await response.arrayBuffer())
+      };
+    } catch (error) {
+      console.error('[remote-latex] request failed', {
+        fileName,
+        compilerHost: new URL(remoteConfig.baseUrl).host,
+        sourcePath: tempBlob.pathname,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return {
+        success: false,
+        output: error instanceof Error ? error.message : String(error)
+      };
+    }
+  } finally {
+    await deleteBlob(tempBlob.pathname).catch(() => {});
+  }
+}
+
+export async function compileLatexRemotelyWithRetries({
+  env,
+  userId,
+  fileName,
+  content,
+  providerId,
+  apiKey = '',
+  model,
+  maxAttempts = 3,
+  allowRepair = false,
+  statusPrefix = 'Compiling LaTeX remotely'
+}) {
+  let currentContent = String(content || '');
+  let lastOutput = '';
+  let repaired = false;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const structuralIssues = detectLatexStructuralIssues(currentContent);
+    if (attempt === 1 && structuralIssues.length) {
+      lastOutput = structuralIssues.join(' ');
+    }
+
+    setGenerationStatus(`${statusPrefix} (attempt ${attempt}/${maxAttempts})...`);
+    const compileResult = await runRemoteLatexCompileOnce({
+      env,
+      userId,
+      fileName,
+      content: currentContent
+    });
+    lastOutput = compileResult.output || lastOutput;
+
+    if (compileResult.success && compileResult.pdfBuffer?.length) {
+      return {
+        success: true,
+        attempts: attempt,
+        repaired,
+        output: compileResult.output,
+        content: currentContent,
+        pdfBuffer: compileResult.pdfBuffer
+      };
+    }
+
+    const shouldRepair = allowRepair && apiKey && attempt < maxAttempts;
+    if (shouldRepair) {
+      setGenerationStatus(`Repairing LaTeX syntax after remote compile failure (attempt ${attempt}/${maxAttempts})...`);
+      const repairedContent = await attemptLatexRepair({
+        providerId,
+        apiKey,
+        model,
+        content: currentContent,
+        compilerOutput: lastOutput
+      });
+      if (repairedContent && repairedContent !== currentContent) {
+        currentContent = repairedContent;
+        repaired = true;
+        continue;
+      }
+    }
+  }
+
+  return {
+    success: false,
+    attempts: maxAttempts,
+    repaired,
+    output: lastOutput,
+    content: currentContent,
+    pdfBuffer: null
+  };
+}
+
 function normalizeKeyword(value) {
   return (value || '')
     .toLowerCase()
@@ -1248,10 +2175,88 @@ function normalizeKeyword(value) {
     .trim();
 }
 
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function canonicalizeTechnicalKeyword(keyword) {
+  const normalized = normalizeKeyword(keyword);
+  if (!normalized) return '';
+  return TECH_KEYWORD_CANONICALS[normalized] || '';
+}
+
+function isLikelyTechnicalPhrase(keyword) {
+  const normalized = normalizeKeyword(keyword);
+  if (!normalized || normalized.length < 2) return false;
+  if (canonicalizeTechnicalKeyword(normalized)) return true;
+
+  if (/[#+.]/.test(String(keyword || ''))) return true;
+  if (/^[a-z]{1,5}\/[a-z]{1,5}$/i.test(String(keyword || ''))) return true;
+  if (/^[A-Z]{2,6}(?:s)?$/.test(String(keyword || '').trim())) return true;
+
+  return [
+    /\b(?:distributed|scalable|event driven|event-driven|microservice|microservices|system|systems)\b.*\b(?:architecture|architectures|system|systems)\b/,
+    /\bapi\b.*\b(?:integration|integrations)\b/,
+    /\bdata\b.*\b(?:pipeline|pipelines)\b/,
+    /\b(?:retrieval augmented generation|agentic ai|large language models|object oriented programming)\b/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function filterTechnicalKeywords(keywords = []) {
+  const canonicalMap = new Map();
+
+  for (const keyword of keywords) {
+    const raw = String(keyword || '').trim();
+    if (!raw) continue;
+
+    const canonical = canonicalizeTechnicalKeyword(raw);
+    if (canonical) {
+      canonicalMap.set(normalizeKeyword(canonical), canonical);
+      continue;
+    }
+
+    if (!isLikelyTechnicalPhrase(raw)) continue;
+    canonicalMap.set(normalizeKeyword(raw), raw);
+  }
+
+  return [...canonicalMap.values()];
+}
+
+function extractTechnicalKeywordsFromText(text) {
+  const normalizedText = normalizeKeyword(text);
+  const rawText = String(text || '').toLowerCase();
+  const detected = new Map();
+
+  Object.entries(TECH_KEYWORD_CANONICALS).forEach(([alias, canonical]) => {
+    const aliasPattern = normalizeKeyword(alias);
+    if (!aliasPattern) return;
+
+    const escapedAlias = escapeRegex(aliasPattern).replace(/\s+/g, '\\s+');
+    const normalizedRegex = new RegExp(`(^|[^a-z0-9#+.])${escapedAlias}([^a-z0-9#+.]|$)`, 'i');
+    const rawEscapedAlias = escapeRegex(String(alias || '').toLowerCase()).replace(/\s+/g, '\\s+');
+    const rawRegex = new RegExp(`(^|[^a-z0-9#+.])${rawEscapedAlias}([^a-z0-9#+.]|$)`, 'i');
+    if (normalizedRegex.test(normalizedText) || rawRegex.test(rawText)) {
+      detected.set(normalizeKeyword(canonical), canonical);
+    }
+  });
+
+  return [...detected.values()];
+}
+
 function getKeywordAliases(keyword) {
-  const raw = (keyword || '').trim();
+  const raw = String(keyword || '').trim();
   const normalized = normalizeKeyword(raw);
+  const canonical = canonicalizeTechnicalKeyword(raw);
   const aliases = new Set([raw.toLowerCase(), normalized]);
+
+  if (canonical) {
+    aliases.add(canonical.toLowerCase());
+    aliases.add(normalizeKeyword(canonical));
+    (TECH_KEYWORD_ALIASES[canonical] || []).forEach((alias) => {
+      aliases.add(alias.toLowerCase());
+      aliases.add(normalizeKeyword(alias));
+    });
+  }
 
   if (normalized === 'r') {
     aliases.add('r language');
@@ -1280,35 +2285,50 @@ function contentContainsKeyword(content, keyword) {
 
   return getKeywordAliases(keyword).some((alias) => {
     if (!alias) return false;
+    const normalizedAlias = normalizeKeyword(alias);
+    if (!normalizedAlias) return false;
+    const escaped = escapeRegex(normalizedAlias).replace(/\s+/g, '\\s+');
+    const normalizedRegex = new RegExp(`(^|[^a-z0-9#+.])${escaped}([^a-z0-9#+.]|$)`, 'i');
+    if (normalizedRegex.test(haystack)) return true;
+
     if (alias.length === 1) {
-      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const singleTokenRegex = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i');
+      const rawEscaped = escapeRegex(alias);
+      const singleTokenRegex = new RegExp(`(^|[^a-z0-9])${rawEscaped}([^a-z0-9]|$)`, 'i');
       return singleTokenRegex.test(rawHaystack);
     }
-    return haystack.includes(normalizeKeyword(alias)) || rawHaystack.includes(alias);
+
+    return rawHaystack.includes(alias);
   });
 }
 
-function calculateMatchedKeywords(jdKeywords, content) {
-  const deduped = [...new Map((jdKeywords || []).map((keyword) => [normalizeKeyword(keyword), keyword])).values()];
+export function calculateMatchedKeywords(jdKeywords, content) {
+  const deduped = filterTechnicalKeywords(jdKeywords);
   return deduped.filter((keyword) => contentContainsKeyword(content, keyword));
 }
 
-function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
+export function filterTechnicalKeywordsForTesting(keywords) {
+  return filterTechnicalKeywords(keywords);
+}
+
+export function extractTechnicalKeywordsFromTextForTesting(text) {
+  return extractTechnicalKeywordsFromText(text);
+}
+
+export function extractApplicationInfoFromJd(jd, fallbackCompany = '', fallbackRole = '') {
   const text = String(jd || '').trim();
   const normalizedFallbackCompany = String(fallbackCompany || '').replace(/_/g, ' ').trim();
   const normalizedFallbackRole = String(fallbackRole || '').replace(/_/g, ' ').trim();
 
   const companyPatterns = [
-    /\bat\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i,
-    /\bjoin\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i,
-    /\bcompany:\s*([A-Z][A-Za-z0-9&.,'/ -]{1,60})/i
+    /\bat\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i,
+    /\bjoin\s+([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i,
+    /\bcompany:\s*([A-Z][A-Za-z0-9&.,'/ -]{1,60}?)(?=\s+(?:in|for|as)\b|[.\n]|$)/i
   ];
 
   const rolePatterns = [
-    /\b(?:seeking|hiring|looking for|looking to hire)\s+(?:an?\s+)?([A-Z][A-Za-z0-9/,+ -]{3,80})/i,
-    /\bposition:\s*([A-Z][A-Za-z0-9/,+ -]{3,80})/i,
-    /\brole:\s*([A-Z][A-Za-z0-9/,+ -]{3,80})/i
+    /\b(?:seeking|hiring|looking for|looking to hire)\s+(?:an?\s+)?([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i,
+    /\bposition:\s*([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i,
+    /\brole:\s*([A-Z][A-Za-z0-9/,+ -]{3,80}?)(?=\s+(?:at|to join|with|for)\b|[.\n]|$)/i
   ];
 
   const cleanValue = (value) => String(value || '')
@@ -1335,7 +2355,7 @@ async function requireAuthenticatedContext(req, res, basePath) {
   return {
     env,
     authContext,
-    paths: getPaths(basePath, authContext.userId)
+    paths: getPaths(basePath, authContext.userId, env)
   };
 }
 
@@ -1387,6 +2407,45 @@ async function handleSettingsGet(res, basePath, context) {
     modelDetails: models,
     providers: providerConfigurations
   });
+}
+
+async function buildOnboardingPayload(basePath, context) {
+  const usesDatabaseDocuments = Boolean(context.authContext.userId && isSupabaseEnabled(context.env));
+  if (usesDatabaseDocuments) {
+    await initializeUserWorkspace(context.paths, context.env, context.authContext.userId);
+  }
+
+  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
+  const providerConfigurations = await listProviderConfigurations(
+    context.paths,
+    context.env,
+    context.authContext.userId
+  );
+  const models = await getModelsForProvider(context.paths, context.env, context.authContext.userId, settings.provider);
+  const pdflatex = await checkPdflatexInstalled();
+  const platform = getPlatformInfo();
+  const packages = getTemplatePackages(basePath);
+
+  const fileStatuses = await Promise.all(REQUIRED_DATA_FILES.map(async (fileName) => {
+    const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
+    return {
+      fileName,
+      exists: usesDatabaseDocuments ? true : Boolean(content),
+      hasContent: documentHasMeaningfulContent(fileName, content)
+    };
+  }));
+
+  return {
+    needsOnboarding: fileStatuses.some((file) => !file.hasContent),
+    fileStatuses,
+    settings,
+    models: models.map((item) => item.id),
+    modelDetails: models,
+    providers: providerConfigurations,
+    pdflatex,
+    platform,
+    packages
+  };
 }
 
 async function handleSettingsPost(req, res, basePath, context) {
@@ -1489,36 +2548,27 @@ async function handleSystemCheck(res, basePath) {
 }
 
 async function handleOnboardingStatus(res, basePath, context) {
-  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
-  const providerConfigurations = await listProviderConfigurations(
-    context.paths,
-    context.env,
-    context.authContext.userId
-  );
-  const models = await getModelsForProvider(context.paths, context.env, context.authContext.userId, settings.provider);
-  const pdflatex = await checkPdflatexInstalled();
-  const platform = getPlatformInfo();
-  const packages = getTemplatePackages(basePath);
+  sendJson(res, await buildOnboardingPayload(basePath, context));
+}
 
-  const fileStatuses = await Promise.all(REQUIRED_DATA_FILES.map(async (fileName) => {
-    const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
-    return {
-      fileName,
-      exists: Boolean(content),
-      hasContent: Boolean(String(content || '').trim())
-    };
-  }));
+async function handleWorkspaceBootstrap(res, basePath, context) {
+  if (context.authContext.userId && isSupabaseEnabled(context.env)) {
+    await initializeUserWorkspace(context.paths, context.env, context.authContext.userId);
+  }
 
+  const onboarding = await buildOnboardingPayload(basePath, context);
   sendJson(res, {
-    needsOnboarding: fileStatuses.some((file) => !file.hasContent),
-    fileStatuses,
-    settings,
-    models: models.map((item) => item.id),
-    modelDetails: models,
-    providers: providerConfigurations,
-    pdflatex,
-    platform,
-    packages
+    success: true,
+    initialized: true,
+    nextStep: onboarding.needsOnboarding ? 'onboarding' : 'app',
+    onboarding,
+    user: context.authContext.user
+      ? {
+          id: context.authContext.user.id,
+          email: context.authContext.user.email || '',
+          userMetadata: context.authContext.user.user_metadata || {}
+        }
+      : null
   });
 }
 
@@ -1576,7 +2626,7 @@ async function handleOnboardingImport(req, res, basePath, context) {
   const onboardingPrompt = `
 You are a resume ingestion and normalization utility for a resume builder app.
 
-Your task is to read the uploaded resume and convert whatever information you can confidently extract into FIVE markdown files that match this app's storage format.
+Your task is to read the uploaded resume and convert whatever information you can confidently extract into EIGHT markdown files that match this app's storage format.
 
 Return ONLY valid raw JSON with this exact schema:
 {
@@ -1584,7 +2634,10 @@ Return ONLY valid raw JSON with this exact schema:
   "projects.md": "markdown string",
   "workex.md": "markdown string",
   "education.md": "markdown string",
-  "skills.md": "markdown string"
+  "skills.md": "markdown string",
+  "research.md": "markdown string",
+  "certification.md": "markdown string",
+  "extracurricular.md": "markdown string"
 }
 
 STRICT FORMAT REQUIREMENTS:
@@ -1632,6 +2685,28 @@ skills.md format:
 ## Category
 - **Subcategory:** item1, item2
 
+research.md format:
+# Research
+
+## Research Item or Publication
+*Date or Year*
+- bullet
+
+certification.md format:
+# Certifications & Awards
+
+## Issuer or Organization
+*Date or Year*
+- **Certification/Award:** value
+- bullet
+
+extracurricular.md format:
+# Extracurricular & Workshops
+
+## Activity or Workshop
+*Date or Year*
+- bullet
+
 RULES:
 1. Extract only what is actually supported by the uploaded resume.
 2. If a section is missing, still return a valid file with just its top-level heading and no invented content.
@@ -1640,7 +2715,10 @@ RULES:
 5. Put technical skills into grouped skill categories when possible.
 6. If personal profile fields are missing, leave them blank but preserve the line.
 7. Do not include markdown code fences.
-8. Return all five files every time.
+8. Return all eight files every time.
+9. Put publications, papers, patents, research assistantships, or thesis-style work in research.md when they are clearly distinct from normal projects.
+10. Put certifications, awards, honors, or licenses in certification.md.
+11. Put leadership, volunteering, clubs, workshops, hackathons, mentoring, teaching assistant work, or notable extracurricular involvement in extracurricular.md unless they clearly belong in work experience.
 `;
 
   const rawResponse = await generateWithUploadedResume({
@@ -1661,23 +2739,16 @@ RULES:
       .trim()
   );
 
-  const defaults = {
-    'profile.md': '# Personal Profile\n\n- **Name:** \n- **Location:** \n- **Phone:** \n- **Email:** \n- **LinkedIn:** \n- **GitHub:** \n- **Portfolio:** \n',
-    'projects.md': '# Projects\n',
-    'workex.md': '# Experience\n',
-    'education.md': '# Education\n',
-    'skills.md': '# Technical Skills\n'
-  };
-
   const createdFiles = [];
   for (const fileNameKey of REQUIRED_DATA_FILES) {
-    const nextContent = (parsed[fileNameKey] || defaults[fileNameKey] || '').trim();
-    const finalContent = `${nextContent || defaults[fileNameKey].trim()}\n`;
+    const defaultContent = getDefaultUserDocumentContent(fileNameKey);
+    const nextContent = (parsed[fileNameKey] || defaultContent || '').trim();
+    const finalContent = `${nextContent || defaultContent.trim()}\n`;
     await writeUserDocument(context.paths, context.env, context.authContext.userId, fileNameKey, finalContent);
     createdFiles.push({
       fileName: fileNameKey,
       created: true,
-      hasContent: Boolean(finalContent.trim())
+      hasContent: documentHasMeaningfulContent(fileNameKey, finalContent)
     });
   }
 
@@ -1701,7 +2772,7 @@ async function handleDataFile(req, res, basePath, context) {
   }
   if (req.method === 'GET') {
     const content = await readUserDocument(context.paths, context.env, context.authContext.userId, fileName);
-    if (!content) {
+    if (!content && !(context.authContext.userId && isSupabaseEnabled(context.env))) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
@@ -1754,93 +2825,127 @@ async function handleCoverLetterDownload(req, res, basePath, context) {
 
 async function handleTexFile(req, res, basePath, context) {
   const fileName = decodeURIComponent(req.url.split('/api/tex/')[1].split('?')[0]);
-  const filePath = resolveSafePath(context.paths.texDir, fileName);
-  ensureDir(context.paths.texDir);
 
   if (req.method === 'GET') {
-    if (!fs.existsSync(filePath)) {
+    const content = await getStoredTexContent(context.paths, context.env, context.authContext.userId, fileName);
+    if (!content) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
-    sendJson(res, { content: fs.readFileSync(filePath, 'utf-8') });
+    sendJson(res, { content });
     return;
   }
 
   const body = await readJsonBody(req);
-  fs.writeFileSync(filePath, body.content || '', 'utf-8');
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, fileName, body.content || '');
   sendJson(res, { success: true });
 }
 
-async function handleTemplatesGet(req, res, basePath) {
+async function handleTemplatesGet(req, res, basePath, context = null) {
   const type = req.url.split('/api/templates/')[1];
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(basePath, 'Templates', folder);
-  const templates = fs.existsSync(templateDir)
-    ? fs.readdirSync(templateDir).filter((file) => file.endsWith('.tex'))
-    : [];
-  sendJson(res, { templates });
+  const templates = await listAccessibleTemplates(
+    basePath,
+    context?.env || getAppEnv(basePath),
+    context?.authContext?.userId || null,
+    type
+  );
+  sendJson(res, {
+    templates: templates.map((item) => item.name),
+    entries: templates
+  });
 }
 
-async function handleTemplateFile(req, res, basePath) {
+async function handleTemplateFile(req, res, basePath, context = null) {
   const parts = req.url.split('/api/template/')[1].split('?')[0].split('/');
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templateDir = path.join(basePath, 'Templates', folder);
-  const filePath = resolveSafePath(templateDir, fileName);
+  const normalizedType = normalizeTemplateType(type);
+  const currentUserId = context?.authContext?.userId || null;
+  const env = context?.env || getAppEnv(basePath);
 
   if (req.method === 'GET') {
-    if (!fs.existsSync(filePath)) {
+    const template = await readAccessibleTemplate(basePath, env, currentUserId, normalizedType, fileName);
+    if (!template) {
       sendJson(res, { error: 'File not found' }, 404);
       return;
     }
-    sendJson(res, { content: fs.readFileSync(filePath, 'utf-8') });
+    sendJson(res, template);
     return;
   }
 
   const body = await readJsonBody(req);
-  fs.writeFileSync(filePath, body.content || '', 'utf-8');
-  sendJson(res, { success: true });
+  try {
+    const result = await saveUserTemplate(basePath, env, currentUserId, normalizedType, fileName, body.content || '');
+    sendJson(res, { success: true, source: result.source });
+  } catch (error) {
+    console.error('[template-save] failed', {
+      type: normalizedType,
+      fileName,
+      userId: currentUserId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    sendJson(res, {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save template.'
+    }, 500);
+  }
 }
 
 async function handleCompileTemplate(req, res, basePath, context) {
   const parts = req.url.split('/api/compile-template/')[1].split('?')[0].split('/');
   const type = parts[0];
   const fileName = decodeURIComponent(parts[1]);
-  const folder = type === 'generic' ? 'Generic' : 'Wireframes';
-  const templatePath = resolveSafePath(path.join(basePath, 'Templates', folder), fileName);
-  if (!fs.existsSync(templatePath)) {
+  const body = req.method === 'POST' ? await readJsonBody(req).catch(() => ({})) : {};
+  const inlineContent = typeof body.content === 'string' ? body.content : '';
+  const template = inlineContent
+    ? { content: inlineContent, source: 'inline', updatedAt: null }
+    : await readAccessibleTemplate(basePath, context.env, context.authContext.userId, type, fileName);
+  if (!template) {
     sendJson(res, { success: false, error: 'Template not found' }, 404);
     return;
   }
 
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
   const previewName = `Preview_${type}_${fileName}`;
-  const previewTexPath = path.join(context.paths.texDir, previewName);
-  fs.copyFileSync(templatePath, previewTexPath);
+  const baseName = fileName.replace(/\.tex$/i, '').replace(/\.pdf$/i, '');
+  const templateContent = template.content;
+  const latexMode = getLatexExecutionMode(context.env);
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName: previewName,
+        content: templateContent,
+        maxAttempts: 3,
+        allowRepair: false,
+        statusPrefix: 'Compiling template preview remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName: previewName,
+        content: templateContent,
+        maxAttempts: 3,
+        allowRepair: false,
+        statusPrefix: 'Compiling template preview'
+      });
 
-  const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
-  const apiKey = await resolveProviderCredential(
-    context.paths,
-    context.env,
-    context.authContext.userId,
-    settings.provider
-  );
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName: previewName,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Compiling template preview'
-  });
-  cleanupLatexArtifacts(context.paths.texDir, previewName.replace('.tex', ''));
-
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
-    sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
-    return;
+  if (latexMode === 'remote') {
+    if (!compileResult.success || !compileResult.pdfBuffer?.length) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
+      return;
+    }
+    await savePdfArtifact(context.paths, context.env, context.authContext.userId, `Preview_${type}_${baseName}.pdf`, compileResult.pdfBuffer, {
+      preview: true,
+      previewType: type
+    });
+  } else {
+    cleanupLatexArtifacts(context.paths.texDir, previewName.replace('.tex', ''));
+    if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile template preview.' }, 500);
+      return;
+    }
   }
 
   sendJson(res, {
@@ -1856,6 +2961,20 @@ async function handleTemplatePdf(req, res, basePath, context) {
   const type = parts[0];
   const fileName = parts[1];
   const baseName = fileName.replace('.tex', '').replace('.pdf', '');
+  if (shouldUseBlobArtifacts(context.env) && context.authContext.userId) {
+    const blobResult = await getBlob(buildPreviewBlobPath(context.authContext.userId, type, `Preview_${type}_${baseName}.pdf`), {
+      access: 'private'
+    });
+    if (!blobResult?.stream) {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+    res.setHeader('Content-Type', blobResult.blob.contentType || 'application/pdf');
+    res.setHeader('Content-Length', String(blobResult.blob.size || 0));
+    streamWebToNode(blobResult.stream, res);
+    return;
+  }
   const filePath = path.join(context.paths.texDir, `Preview_${type}_${baseName}.pdf`);
   if (!fs.existsSync(filePath)) {
     res.statusCode = 404;
@@ -1870,7 +2989,9 @@ async function handleTemplatePdf(req, res, basePath, context) {
 
 async function handleCompileSavedTex(req, res, basePath, context) {
   const fileName = decodeURIComponent(req.url.split('/api/compile/')[1].split('?')[0]);
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
   const baseName = fileName.replace('.tex', '');
   const latexMode = getLatexExecutionMode(context.env);
 
@@ -1898,25 +3019,60 @@ async function handleCompileSavedTex(req, res, basePath, context) {
     context.authContext.userId,
     settings.provider
   );
+  const texContent = await getStoredTexContent(context.paths, context.env, context.authContext.userId, fileName);
+  if (!texContent) {
+    sendJson(res, { success: false, error: 'TeX source not found.' }, 404);
+    return;
+  }
 
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Recompiling saved LaTeX'
-  });
-  const finalPdfPath = path.join(context.paths.pdfDir, `${baseName}.pdf`);
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName,
+        content: texContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Recompiling saved LaTeX remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName,
+        content: texContent,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Recompiling saved LaTeX'
+      });
+  if (!compileResult.success) {
     sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF.' }, 500);
     return;
   }
 
-  fs.renameSync(compileResult.pdfPath, finalPdfPath);
-  cleanupLatexArtifacts(context.paths.texDir, baseName);
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, fileName, compileResult.content || texContent);
+
+  if (latexMode === 'remote') {
+    await savePdfArtifact(
+      context.paths,
+      context.env,
+      context.authContext.userId,
+      `${baseName}.pdf`,
+      compileResult.pdfBuffer
+    );
+  } else {
+    const finalPdfPath = path.join(context.paths.pdfDir, `${baseName}.pdf`);
+    if (!fs.existsSync(compileResult.pdfPath)) {
+      sendJson(res, { success: false, error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF.' }, 500);
+      return;
+    }
+    fs.renameSync(compileResult.pdfPath, finalPdfPath);
+    cleanupLatexArtifacts(context.paths.texDir, baseName);
+  }
   sendJson(res, {
     success: true,
     attempts: compileResult.attempts,
@@ -1925,6 +3081,26 @@ async function handleCompileSavedTex(req, res, basePath, context) {
 }
 
 async function handleOutputsGet(res, basePath, context) {
+  if (context.authContext.userId && isSupabaseEnabled(context.env) && shouldUseBlobArtifacts(context.env)) {
+    const { data, availableColumns } = await selectGenerationHistoryRows(
+      context.env,
+      context.authContext.userId,
+      ['artifact_base_name', 'pdf_blob_path', 'pdf_blob_url', 'updated_at', 'created_at'],
+      (query) => query.order('updated_at', { ascending: false })
+    );
+    if (availableColumns.has('pdf_blob_path') || availableColumns.has('pdf_blob_url')) {
+      const files = (data || [])
+        .filter((row) => row.pdf_blob_path || row.pdf_blob_url)
+        .map((row) => ({
+          name: `${row.artifact_base_name}.pdf`,
+          time: new Date(row.updated_at || row.created_at || Date.now()).getTime()
+        }))
+        .sort((a, b) => b.time - a.time);
+      sendJson(res, { files });
+      return;
+    }
+  }
+
   if (!fs.existsSync(context.paths.pdfDir)) {
     sendJson(res, { files: [] });
     return;
@@ -1941,16 +3117,28 @@ async function handleOutputsGet(res, basePath, context) {
 
 async function handleOutputDownload(req, res, basePath, context) {
   const fileName = req.url.split('/api/output/')[1].split('?')[0];
-  const filePath = resolveSafePath(context.paths.pdfDir, fileName);
-  if (!fs.existsSync(filePath)) {
+  await streamPdfArtifactToResponse(context.paths, context.env, context.authContext.userId, fileName, res);
+}
+
+async function handleRemoteTexSource(req, res, basePath) {
+  const env = getAppEnv(basePath);
+  const token = decodeURIComponent(req.url.split('/api/remote-tex/')[1].split('?')[0] || '');
+  const payload = readRemoteTexAccessToken(env, token);
+  if (!payload?.blobPath) {
+    res.statusCode = 403;
+    res.end('Invalid or expired token');
+    return;
+  }
+
+  const blobResult = await getBlob(payload.blobPath, { access: 'private' });
+  if (!blobResult?.stream) {
     res.statusCode = 404;
     res.end('Not found');
     return;
   }
-  const stat = fs.statSync(filePath);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Length', stat.size);
-  fs.createReadStream(filePath).pipe(res);
+
+  res.setHeader('Content-Type', blobResult.blob.contentType || 'application/x-tex; charset=utf-8');
+  streamWebToNode(blobResult.stream, res);
 }
 
 async function handleHighlight(req, res, basePath, context) {
@@ -1993,21 +3181,34 @@ ${body.content || ''}
 
 async function readGenerationInputs(paths, env, userId, template) {
   const readDoc = (fileName) => readUserDocument(paths, env, userId, fileName);
-  const [dataProfile, dataProj, dataSkills, dataWork, dataEdu] = await Promise.all([
+  const [
+    dataProfile,
+    dataProj,
+    dataSkills,
+    dataWork,
+    dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular
+  ] = await Promise.all([
     readDoc('profile.md'),
     readDoc('projects.md'),
     readDoc('skills.md'),
     readDoc('workex.md'),
-    readDoc('education.md')
+    readDoc('education.md'),
+    readDoc('research.md'),
+    readDoc('certification.md'),
+    readDoc('extracurricular.md')
   ]);
-  const ruleText = fs.readFileSync(path.join(paths.basePath, '.agent', 'rules', 'resume-generation-rule.md'), 'utf-8');
+  const agentRoot = getAgentRoot(paths.basePath);
+  const ruleText = fs.readFileSync(path.join(agentRoot, 'rules', 'resume-generation-rule.md'), 'utf-8');
   let clRuleText = '';
   try {
-    clRuleText = fs.readFileSync(path.join(paths.basePath, '.agent', 'rules', 'cover-letter-rule.md'), 'utf-8');
+    clRuleText = fs.readFileSync(path.join(agentRoot, 'rules', 'cover-letter-rule.md'), 'utf-8');
   } catch {
     clRuleText = '';
   }
-  const skillText = fs.readFileSync(path.join(paths.basePath, '.agent', 'skills', 'resume_builder', 'SKILL.md'), 'utf-8');
+  const skillText = fs.readFileSync(path.join(agentRoot, 'skills', 'resume_builder', 'SKILL.md'), 'utf-8');
   const templateText = fs.readFileSync(path.join(paths.wireframesDir, template), 'utf-8');
 
   return {
@@ -2016,6 +3217,9 @@ async function readGenerationInputs(paths, env, userId, template) {
     dataSkills,
     dataWork,
     dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular,
     ruleText,
     clRuleText,
     skillText,
@@ -2085,7 +3289,9 @@ async function handleGenerate(req, res, basePath, context) {
   const body = await readJsonBody(req);
   const { prompt, template } = body;
   setGenerationStatus('Initializing Core Evaluators and Loading System Context...');
-  ensureWorkspaceDirs(context.paths);
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    ensureWorkspaceDirs(context.paths);
+  }
 
   const settings = await getUserSettings(context.paths, context.env, context.authContext.userId);
   const apiKey = await resolveProviderCredential(
@@ -2106,13 +3312,16 @@ async function handleGenerate(req, res, basePath, context) {
     dataSkills,
     dataWork,
     dataEdu,
+    dataResearch,
+    dataCertification,
+    dataExtracurricular,
     ruleText,
     clRuleText,
     skillText,
     templateText
   } = await readGenerationInputs(context.paths, context.env, context.authContext.userId, template);
 
-  setGenerationStatus('Pass 1: AI actively analyzing target JD and generating mapping overlaps...');
+ setGenerationStatus('Pass 1: AI actively analyzing target JD and generating mapping overlaps...');
   const pass1Prompt = `
 You are an expert AI Career Coach and Resume Optimizer.
 I am providing you with a Target Job Description and a Candidate's Current Experience.
@@ -2135,23 +3344,52 @@ ${dataSkills}
 Work Experience:
 ${dataWork}
 
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
+
 === INSTRUCTIONS ===
-1. Analyze the Target Job Description and extract ONLY technology-focused keywords and technical hiring signals.
-2. Prioritize concrete technical terms such as languages, frameworks, libraries, SDKs, APIs, protocols, cloud platforms, databases, data tools, DevOps tools, operating systems, infrastructure, AI/ML technologies, and named technical methods.
-3. DO NOT extract generic soft skills or vague business phrases.
-4. Normalize keywords to concise resume-friendly technology labels.
-5. Prefer explicit, repeated, or high-signal technical terms from the JD.
-6. Cross-reference these JD technology keywords against the Candidate Current Experience exactly as written.
-7. DO NOT rewrite, paraphrase, optimize, inject, expand, or modify any candidate bullets, skills, or project text.
-8. Return the original Candidate Current Experience back unchanged inside the response field named \`optimizedExperience\`.
-9. Preserve ALL existing \`**markdown bold**\` tags exactly as they appear.
-10. Return your response AS A STRICT RAW JSON OBJECT matching this exact schema:
+1. Analyze the Target Job Description and extract ONLY concrete technical keywords and technical architecture signals.
+2. Prioritize items such as languages, frameworks, libraries, SDKs, APIs, cloud platforms, databases, DevOps tools, hardware languages, BI/data tools, AI/ML terms, and architecture concepts.
+3. Good examples include: Python, Docker, Verilog, SQL, PostgreSQL, C++, GitHub Actions, ETL, Tableau, REST APIs, Distributed Systems, API Integrations, OOP, RAG, Agentic AI, and LLMs.
+4. DO NOT extract generic soft skills, team phrases, business jargon, or random role words such as ownership, collaboration, fast-paced, communication, problem solving, stakeholder management, or innovation.
+5. Normalize keywords to concise canonical technology labels.
+6. Prefer explicit, repeated, or high-signal technical terms from the JD.
+7. Cross-reference these JD technology keywords against the Candidate Current Experience exactly as written.
+8. DO NOT rewrite, paraphrase, optimize, inject, expand, or modify any candidate bullets, skills, or project text.
+9. Return the original Candidate Current Experience back unchanged inside the response field named \`optimizedExperience\`.
+10. Preserve ALL existing \`**markdown bold**\` tags exactly as they appear.
+11. Return between 6 and 20 keywords max, and make every keyword a technology or architecture concept.
+12. Return your response AS A STRICT RAW JSON OBJECT matching this exact schema:
 {
   "jdKeywords": ["keyword"],
   "matchedKeywords": ["keyword"],
   "optimizationPercentage": 0,
-  "optimizedExperience": "original text"
+    "optimizedExperience": "original text",
+    "contentPlan": {
+      "roleCount": 1,
+      "projectCount": 2,
+    "includeResearch": false,
+    "includeCertifications": false,
+    "includeExtracurricular": false,
+    "courseworkPerDegree": 3,
+    "selectionRationale": "short explanation"
+  }
 }
+13. The \`contentPlan\` must be selective and concise:
+    - \`roleCount\` must be either 1 or 2 based on how many roles are genuinely needed to match the JD.
+    - \`projectCount\` must be either 2 or 3, and must never be lower than 2.
+    - Always include at least the 2 strongest JD-aligned projects, even if other optional sections need to be cut for space.
+    - \`includeResearch\` should be true only if the research materially strengthens candidacy for this JD.
+    - \`includeCertifications\` should be true only if certifications or awards are role-relevant and worth the space.
+    - \`includeExtracurricular\` should be true only if extracurriculars add real evidence for the JD and space allows.
+    - \`courseworkPerDegree\` must be 3.
+14. Prefer omission over weak relevance. Do not recommend including sections just because they exist.
 CRITICAL: Output ONLY valid JSON with no markdown wrappers.
 `;
 
@@ -2174,19 +3412,47 @@ CRITICAL: Output ONLY valid JSON with no markdown wrappers.
     );
 
     optimizedExperience = parsedObj.optimizedExperience || '';
-    const jdKeywords = [...new Map((parsedObj.jdKeywords || []).map((keyword) => [normalizeKeyword(keyword), keyword])).values()];
+    const modelKeywords = filterTechnicalKeywords(parsedObj.jdKeywords || []);
+    const heuristicKeywords = extractTechnicalKeywordsFromText(prompt);
+    const jdKeywords = [...new Map(
+      [...modelKeywords, ...heuristicKeywords].map((keyword) => [normalizeKeyword(keyword), keyword])
+    ).values()];
     const matchedKeywords = calculateMatchedKeywords(jdKeywords, optimizedExperience);
     const calcPct = jdKeywords.length
       ? Math.min(100, Math.round((matchedKeywords.length / jdKeywords.length) * 100))
       : 0;
+    const contentPlan = {
+      roleCount: parsedObj?.contentPlan?.roleCount === 2 ? 2 : 1,
+      projectCount: parsedObj?.contentPlan?.projectCount === 3 ? 3 : 2,
+      includeResearch: Boolean(parsedObj?.contentPlan?.includeResearch),
+      includeCertifications: Boolean(parsedObj?.contentPlan?.includeCertifications),
+      includeExtracurricular: Boolean(parsedObj?.contentPlan?.includeExtracurricular),
+      courseworkPerDegree: 3,
+      selectionRationale: String(parsedObj?.contentPlan?.selectionRationale || '').trim()
+    };
 
     pass1Metrics = {
       jdKeywords,
       matchedKeywords,
-      optimizationPercentage: calcPct
+      optimizationPercentage: calcPct,
+      contentPlan
     };
   } catch {
-    optimizedExperience = `Projects:\n${dataProj}\nSkills:\n${dataSkills}\nWork Experience:\n${dataWork}`;
+    optimizedExperience = `Projects:\n${dataProj}\nSkills:\n${dataSkills}\nWork Experience:\n${dataWork}\nResearch:\n${dataResearch}\nCertifications & Awards:\n${dataCertification}\nExtracurricular & Workshops:\n${dataExtracurricular}`;
+    pass1Metrics = {
+      jdKeywords: [],
+      matchedKeywords: [],
+      optimizationPercentage: 0,
+      contentPlan: {
+        roleCount: 1,
+        projectCount: 2,
+        includeResearch: false,
+        includeCertifications: false,
+        includeExtracurricular: false,
+        courseworkPerDegree: 3,
+        selectionRationale: ''
+      }
+    };
   }
 
   setGenerationStatus('Pass 2: AI actively converting your targeting metrics into robust LaTeX formatting...');
@@ -2209,8 +3475,26 @@ ${dataProfile}
 Education:
 ${dataEdu}
 
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
+
 ==== READ-ONLY EXPERIENCE SNAPSHOT (PRESERVE BOLDINGS EXACTLY, DO NOT REPHRASE) ====
 ${optimizedExperience}
+
+=== CONTENT SELECTION PLAN (FOLLOW THIS PLAN, DO NOT INCLUDE EVERYTHING) ===
+- Work roles to include: ${pass1Metrics?.contentPlan?.roleCount === 2 ? 'up to 2' : '1'}
+- Projects to include: ${pass1Metrics?.contentPlan?.projectCount || 2}
+- Include research: ${pass1Metrics?.contentPlan?.includeResearch ? 'yes' : 'no'}
+- Include certifications & awards: ${pass1Metrics?.contentPlan?.includeCertifications ? 'yes' : 'no'}
+- Include extracurriculars: ${pass1Metrics?.contentPlan?.includeExtracurricular ? 'yes' : 'no'}
+- Maximum coursework items per degree: ${pass1Metrics?.contentPlan?.courseworkPerDegree || 3}
+- Selection rationale: ${pass1Metrics?.contentPlan?.selectionRationale || 'Prefer the most directly relevant evidence for the JD.'}
 
 === BASE TEMPLATE (DO NOT MODIFY THE MACROS/FORMATTING, JUST SWAP OUT THE CONTENT DATA) ===
 You must completely swap out structural placeholders explicitly with exact metrics from the User Data section.
@@ -2222,6 +3506,25 @@ The Optimized User Data contains markdown bold tags like \`**keyword**\`.
 When injecting these points into the LaTeX document, convert EVERY markdown bold block into native LaTeX bolding: \`\\textbf{keyword}\`.
 STRICT SKILLS FORMATTING: Individual skills MUST NEVER be bolded in the Skills section.
 STRICT CONTENT LOCK: Do NOT rewrite, paraphrase, optimize, or invent any resume bullet text. Use the candidate content exactly as provided.
+STRICT LATEX DEPENDENCY LOCK:
+- Do NOT add, remove, or rename any \\usepackage lines.
+- Do NOT introduce any new LaTeX package, library, plugin, font package, icon package, document class, or external dependency.
+- Use only the packages and macros already present in the base template.
+- If a feature would require a new package, rewrite the content using plain LaTeX already supported by the template instead.
+STRICT CONTENT CURATION RULES:
+- Education, Work Experience, Projects, and Skills are mandatory core sections and must always be included.
+- Contact/social links from the profile are fixed and should always be included.
+- Select only 1 or 2 roles based on the JD. Prefer 1 role when it is enough to demonstrate fit; use 2 only when the JD clearly spans multiple relevant experiences.
+- Always include at least 2 projects, and include 3 only when space allows and the third project is still strong.
+- The first 2 projects must be the strongest JD-aligned projects from the candidate data. Never include fewer than 2 projects.
+- Always include a Skills section with the strongest JD-relevant subset supported by the user's data.
+- Include research only if it is materially relevant to the JD.
+- Include certifications and awards only if they are relevant and space permits.
+- Include extracurriculars only if they add meaningful JD-relevant evidence and space permits.
+- For each degree, include at most 3 coursework items, chosen specifically for JD relevance.
+- Do not include irrelevant sections just to fill space.
+- If space is tight, cut weaker optional sections before cutting the mandatory core sections.
+- Skills should be curated to the strongest JD-relevant subset supported by the user's data, not an exhaustive inventory.
 
 ${templateText}
 `;
@@ -2252,6 +3555,15 @@ ${dataWork}
 
 Education:
 ${dataEdu}
+
+Research:
+${dataResearch}
+
+Certifications & Awards:
+${dataCertification}
+
+Extracurricular & Workshops:
+${dataExtracurricular}
 
 === READ-ONLY EXPERIENCE SNAPSHOT ===
 ${optimizedExperience}
@@ -2315,10 +3627,11 @@ The cover letter must:
     aiText = aiText.substring(firstLineBreak + 1).trim();
   }
 
-  const texPath = path.join(context.paths.texDir, `${filename}.tex`);
-  fs.writeFileSync(texPath, aiText, 'utf-8');
+  await saveStoredTexContent(context.paths, context.env, context.authContext.userId, `${filename}.tex`, aiText);
   const coverLetterFile = `${filename}_Cover_Letter.txt`;
-  fs.writeFileSync(path.join(context.paths.coverLettersDir, coverLetterFile), coverLetterText, 'utf-8');
+  if (getLatexExecutionMode(context.env) !== 'remote') {
+    fs.writeFileSync(path.join(context.paths.coverLettersDir, coverLetterFile), coverLetterText, 'utf-8');
+  }
 
   const applicationInfo = extractApplicationInfoFromJd(
     prompt,
@@ -2343,10 +3656,13 @@ The cover letter must:
     jd: prompt,
     coverLetterFile,
     coverLetterContent: coverLetterText,
+    texContent: aiText,
     createdAt: new Date().toISOString()
   }).catch(() => {});
 
-  if (getLatexExecutionMode(context.env) === 'worker' && context.authContext.userId) {
+  const latexMode = getLatexExecutionMode(context.env);
+
+  if (latexMode === 'worker' && context.authContext.userId) {
     const job = await enqueueGenerationJob(context.paths, context.env, context.authContext.userId, {
       source: 'generate',
       artifactBaseName: filename,
@@ -2368,22 +3684,38 @@ The cover letter must:
     return;
   }
 
-  setGenerationStatus('Compiling generated LaTeX syntax to PDF locally...');
-  const compileResult = await compileLatexWithRetries({
-    workingDir: context.paths.texDir,
-    fileName: `${filename}.tex`,
-    content: aiText,
-    providerId: settings.provider,
-    apiKey,
-    model: settings.selectedModel,
-    maxAttempts: 3,
-    allowRepair: true,
-    statusPrefix: 'Compiling generated LaTeX syntax to PDF locally'
-  });
+  setGenerationStatus(
+    latexMode === 'remote'
+      ? 'Compiling generated LaTeX syntax through the remote PDF compiler...'
+      : 'Compiling generated LaTeX syntax to PDF locally...'
+  );
+  const compileResult = latexMode === 'remote'
+    ? await compileLatexRemotelyWithRetries({
+        env: context.env,
+        userId: context.authContext.userId,
+        fileName: `${filename}.tex`,
+        content: aiText,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling generated LaTeX syntax remotely'
+      })
+    : await compileLatexWithRetries({
+        workingDir: context.paths.texDir,
+        fileName: `${filename}.tex`,
+        content: aiText,
+        providerId: settings.provider,
+        apiKey,
+        model: settings.selectedModel,
+        maxAttempts: 3,
+        allowRepair: true,
+        statusPrefix: 'Compiling generated LaTeX syntax to PDF locally'
+      });
 
-  const finalPdfPath = path.join(context.paths.pdfDir, `${filename}.pdf`);
-  if (!compileResult.success || !fs.existsSync(compileResult.pdfPath)) {
-    cleanupLatexArtifacts(context.paths.texDir, filename);
+  if (!compileResult.success) {
+    if (latexMode !== 'remote') cleanupLatexArtifacts(context.paths.texDir, filename);
     setGenerationStatus('Idle');
     sendJson(res, {
       success: false,
@@ -2392,8 +3724,35 @@ The cover letter must:
     return;
   }
 
-  fs.renameSync(compileResult.pdfPath, finalPdfPath);
-  cleanupLatexArtifacts(context.paths.texDir, filename);
+  await saveStoredTexContent(
+    context.paths,
+    context.env,
+    context.authContext.userId,
+    `${filename}.tex`,
+    compileResult.content || aiText
+  );
+
+  if (latexMode === 'remote') {
+    await savePdfArtifact(
+      context.paths,
+      context.env,
+      context.authContext.userId,
+      `${filename}.pdf`,
+      compileResult.pdfBuffer
+    );
+  } else {
+    const finalPdfPath = path.join(context.paths.pdfDir, `${filename}.pdf`);
+    if (!fs.existsSync(compileResult.pdfPath)) {
+      setGenerationStatus('Idle');
+      sendJson(res, {
+        success: false,
+        error: extractLatexErrorSnippet(compileResult.output) || 'Failed to compile PDF. Ensure pdflatex is installed on this machine.'
+      }, 500);
+      return;
+    }
+    fs.renameSync(compileResult.pdfPath, finalPdfPath);
+    cleanupLatexArtifacts(context.paths.texDir, filename);
+  }
 
   setGenerationStatus('Idle');
   sendJson(res, {
@@ -2410,183 +3769,180 @@ The cover letter must:
   });
 }
 
-async function handleOpportunities(req, res, basePath, context) {
-  const url = new URL(req.url, 'http://localhost');
-  const refresh = url.searchParams.get('refresh') === '1';
-  const cacheOnly = url.searchParams.get('cache_only') === '1';
-  const payload = cacheOnly
-    ? getCachedOpportunitiesPayload(context.paths.opportunitiesCachePath)
-    : await getOpportunitiesPayload({
-        forceRefresh: refresh,
-        cachePath: context.paths.opportunitiesCachePath
-      });
-
-  sendJson(res, {
-    success: true,
-    updatedAt: payload.updatedAt,
-    fetchedAt: payload.fetchedAt,
-    fromCache: Boolean(payload.fromCache),
-    stale: Boolean(payload.stale),
-    opportunities: payload.opportunities || [],
-    sources: payload.sources || []
-  });
-}
-
 export function createRequestHandler({ basePath } = {}) {
   const resolvedBasePath = basePath || path.resolve(__dirname, '..', '..');
   return async function handleRequest(req, res, next = null) {
+    let request = req;
     try {
-      if (!req.url?.startsWith('/api/')) {
+      const parsedUrl = parseRequestUrl(req);
+      for (const key of [...parsedUrl.searchParams.keys()]) {
+        if (key.toLowerCase().includes('path')) {
+          parsedUrl.searchParams.delete(key);
+        }
+      }
+      const normalizedPathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
+      const normalizedUrl = `${normalizedPathname}${parsedUrl.search || ''}`;
+      request = Object.create(req);
+      request.url = normalizedUrl;
+      request.method = req.method;
+      request.headers = req.headers;
+
+      if (!request.url?.startsWith('/api/')) {
         if (typeof next === 'function') next();
         return;
       }
 
-      if (req.url === '/api/status' && req.method === 'GET') {
+      if (request.url === '/api/status' && request.method === 'GET') {
         await handleStatusRoute(res);
         return;
       }
 
-      if (req.url === '/api/app-config' && req.method === 'GET') {
+      if (request.url === '/api/app-config' && request.method === 'GET') {
         await handleAppConfigRoute(res, resolvedBasePath);
         return;
       }
 
-      if (req.url === '/api/session' && req.method === 'GET') {
-        await handleSessionRoute(req, res, resolvedBasePath);
+      if (request.url === '/api/session' && request.method === 'GET') {
+        await handleSessionRoute(request, res, resolvedBasePath);
         return;
       }
 
-      const context = await requireAuthenticatedContext(req, res, resolvedBasePath);
+      if (request.url.startsWith('/api/remote-tex/') && request.method === 'GET') {
+        await handleRemoteTexSource(request, res, resolvedBasePath);
+        return;
+      }
+
+      const context = await requireAuthenticatedContext(request, res, resolvedBasePath);
       if (!context) return;
       ensureOpportunitiesCacheDir(context.paths.opportunitiesCachePath);
 
-      if (req.url === '/api/settings' && req.method === 'GET') {
+      if (request.url === '/api/settings' && request.method === 'GET') {
         await handleSettingsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/settings' && req.method === 'POST') {
-        await handleSettingsPost(req, res, resolvedBasePath, context);
+      if (request.url === '/api/settings' && request.method === 'POST') {
+        await handleSettingsPost(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/providers' && req.method === 'GET') {
+      if (request.url === '/api/providers' && request.method === 'GET') {
         await handleProvidersGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/models') && req.method === 'GET') {
-        await handleModelsGet(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/models') && request.method === 'GET') {
+        await handleModelsGet(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/test-llm' && req.method === 'POST') {
-        await handleTestLlm(req, res, resolvedBasePath, context);
+      if (request.url === '/api/test-llm' && request.method === 'POST') {
+        await handleTestLlm(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/system-check' && req.method === 'GET') {
+      if (request.url === '/api/system-check' && request.method === 'GET') {
         await handleSystemCheck(res, resolvedBasePath);
         return;
       }
 
-      if (req.url === '/api/onboarding-status' && req.method === 'GET') {
+      if (request.url === '/api/onboarding-status' && request.method === 'GET') {
         await handleOnboardingStatus(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/latex-setup-check' && req.method === 'POST') {
-        await handleLatexSetupCheck(req, res, resolvedBasePath);
+      if (request.url === '/api/workspace-bootstrap' && request.method === 'POST') {
+        await handleWorkspaceBootstrap(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/onboarding-import' && req.method === 'POST') {
-        await handleOnboardingImport(req, res, resolvedBasePath, context);
+      if (request.url === '/api/latex-setup-check' && request.method === 'POST') {
+        await handleLatexSetupCheck(request, res, resolvedBasePath);
         return;
       }
 
-      if (req.url.startsWith('/api/data/')) {
-        await handleDataFile(req, res, resolvedBasePath, context);
+      if (request.url === '/api/onboarding-import' && request.method === 'POST') {
+        await handleOnboardingImport(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/applications' && req.method === 'GET') {
+      if (request.url.startsWith('/api/data/')) {
+        await handleDataFile(request, res, resolvedBasePath, context);
+        return;
+      }
+
+      if (request.url === '/api/applications' && request.method === 'GET') {
         await handleApplicationsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/opportunities') && req.method === 'GET') {
-        await handleOpportunities(req, res, resolvedBasePath, context);
-        return;
-      }
-
-      if (req.url === '/api/history' && req.method === 'GET') {
+      if (request.url === '/api/history' && request.method === 'GET') {
         await handleHistoryGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/generation-jobs/') && req.method === 'GET') {
-        await handleGenerationJobGet(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/generation-jobs/') && request.method === 'GET') {
+        await handleGenerationJobGet(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/cover-letter/') && req.method === 'GET') {
-        await handleCoverLetterDownload(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/cover-letter/') && request.method === 'GET') {
+        await handleCoverLetterDownload(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/tex/')) {
-        await handleTexFile(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/tex/')) {
+        await handleTexFile(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/templates/') && req.method === 'GET') {
-        await handleTemplatesGet(req, res, resolvedBasePath);
+      if (request.url.startsWith('/api/templates/') && request.method === 'GET') {
+        await handleTemplatesGet(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/template/')) {
-        await handleTemplateFile(req, res, resolvedBasePath);
+      if (request.url.startsWith('/api/template/')) {
+        await handleTemplateFile(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/compile-template/') && req.method === 'POST') {
-        await handleCompileTemplate(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/compile-template/') && request.method === 'POST') {
+        await handleCompileTemplate(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/template-pdf/') && req.method === 'GET') {
-        await handleTemplatePdf(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/template-pdf/') && request.method === 'GET') {
+        await handleTemplatePdf(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/compile/') && req.method === 'POST') {
-        await handleCompileSavedTex(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/compile/') && request.method === 'POST') {
+        await handleCompileSavedTex(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/outputs' && req.method === 'GET') {
+      if (request.url === '/api/outputs' && request.method === 'GET') {
         await handleOutputsGet(res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url.startsWith('/api/output/') && req.method === 'GET') {
-        await handleOutputDownload(req, res, resolvedBasePath, context);
+      if (request.url.startsWith('/api/output/') && request.method === 'GET') {
+        await handleOutputDownload(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/highlight' && req.method === 'POST') {
-        await handleHighlight(req, res, resolvedBasePath, context);
+      if (request.url === '/api/highlight' && request.method === 'POST') {
+        await handleHighlight(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/humanize-cover-letter' && req.method === 'POST') {
-        await handleHumanizeCoverLetter(req, res, resolvedBasePath, context);
+      if (request.url === '/api/humanize-cover-letter' && request.method === 'POST') {
+        await handleHumanizeCoverLetter(request, res, resolvedBasePath, context);
         return;
       }
 
-      if (req.url === '/api/generate' && req.method === 'POST') {
-        await handleGenerate(req, res, resolvedBasePath, context);
+      if (request.url === '/api/generate' && request.method === 'POST') {
+        await handleGenerate(request, res, resolvedBasePath, context);
         return;
       }
 
@@ -2598,6 +3954,12 @@ export function createRequestHandler({ basePath } = {}) {
       sendJson(res, { success: false, error: 'Not found.' }, 404);
     } catch (error) {
       setGenerationStatus('Idle');
+      console.error('[api] request failed', {
+        url: request.url,
+        method: request.method,
+        userId: request.user?.id || null,
+        error: error instanceof Error ? error.message : String(error)
+      });
       sendJson(res, { success: false, error: error.message || 'Server error.' }, 500);
     }
   };
