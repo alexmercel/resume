@@ -82,7 +82,13 @@ function AuthGate({ supabaseClient }) {
     try {
       const response = mode === 'signin'
         ? await supabaseClient.auth.signInWithPassword({ email: email.trim(), password })
-        : await supabaseClient.auth.signUp({ email: email.trim(), password });
+        : await supabaseClient.auth.signUp({ 
+            email: email.trim(), 
+            password,
+            options: {
+              emailRedirectTo: window.location.origin
+            }
+          });
 
       if (response.error) throw response.error;
       if (response.data?.session) {
